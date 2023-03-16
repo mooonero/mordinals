@@ -57,7 +57,7 @@ Balance: 0.121121000000, unlocked balance: 0.121121000000
 `[wallet 31yfs3]:  mint_ordinal 0.00001 /home/images/my_inscription.png /home/description.txt`
 
 
-[8]. Wait until the transaction is confirmed, and then check mordinals.com to see if your inscription has been recognized and registered.
+[8]. Wait until the transaction is confirmed, and then check mordinals.org to see if your inscription has been recognized and registered.
 
 
 [9]. Bask in the glory of being inscribed in Monero's history!
