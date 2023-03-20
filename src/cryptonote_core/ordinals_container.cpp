@@ -140,7 +140,7 @@ bool ordinals_container::init(const std::string& config_folder)
   m_config_path = config_folder;
 
 
-  boost::filesystem::ifstream ordinals_data;
+  std::ifstream ordinals_data;
   ordinals_data.open(m_config_path + "/" + ORDINALS_CONFIG_FILENAME, std::ios_base::in| std::ios_base::binary);
   if (ordinals_data.fail())
   {
@@ -165,7 +165,7 @@ bool ordinals_container::init(const std::string& config_folder)
 bool ordinals_container::deinit()
 {
 
-  boost::filesystem::ofstream ordinals_data;
+ std::ofstream ordinals_data;
   ordinals_data.open(m_config_path + "/" + ORDINALS_CONFIG_FILENAME, std::ios_base::out | std::ios_base::binary | std::ios::trunc);
   if (ordinals_data.fail())
     return false;
