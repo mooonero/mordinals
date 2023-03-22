@@ -468,7 +468,7 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
     LOG_ERROR("Ordinals initialization failed");
     return false;
   }
-  if (m_ordinals.get_block_height() == 0)
+  if (m_ordinals.get_block_height() == 0 || m_ordinals.need_resync())
   {
     // need to resync 
     uint64_t h = m_db->height();
@@ -486,7 +486,10 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
             MERROR("Ordinals: resync history failed for block  " << h_ord << " and tx " << tx_id);
             return false;
           }
-          m_ordinals.on_push_transaction(ord_tx, h_ord);
+          std::vector<uint64_t> outs_indexes;
+          get_tx_outputs_gindexs(tx_id, outs_indexes);
+
+          m_ordinals.on_push_transaction(ord_tx, h_ord, outs_indexes);
         }
         m_ordinals.set_block_height(h_ord);
       }
@@ -636,6 +639,13 @@ block Blockchain::pop_block_from_blockchain()
 
   block popped_block;
   std::vector<transaction> popped_txs;
+  std::vector<std::vector<uint64_t>> tx_outputs_offsets;
+  block top_b = m_db->get_top_block();
+  tx_outputs_offsets.resize(top_b.tx_hashes.size());
+  for (auto rit = top_b.tx_hashes.rbegin(); rit != top_b.tx_hashes.rend(); rit++)
+  {    
+    get_tx_outputs_gindexs(*rit, tx_outputs_offsets[std::distance(top_b.tx_hashes.rbegin(), rit)]);
+  }
 
   CHECK_AND_ASSERT_THROW_MES(m_db->height() > 1, "Cannot pop the genesis block");
 
@@ -662,8 +672,15 @@ block Blockchain::pop_block_from_blockchain()
 
   // return transactions from popped block to the tx_pool
   size_t pruned = 0;
+  size_t count = 0;
   for (transaction& tx : popped_txs)
   {
+    // updating ordinals
+    if (m_db->height() > ORDINAL_HEIGHT_START && !is_coinbase(tx))
+    {
+      m_ordinals.on_pop_transaction(tx, get_block_height(popped_block), tx_outputs_offsets[count]);
+    }
+    count++;
     if (tx.pruned)
     {
       ++pruned;
@@ -687,14 +704,6 @@ block Blockchain::pop_block_from_blockchain()
       if (!r)
       {
         LOG_ERROR("Error returning transaction to tx_pool");
-      }
-    }
-    else
-    {
-      //updating ordinals
-      if (m_db->height() > ORDINAL_HEIGHT_START)
-      {
-        m_ordinals.on_pop_transaction(tx);
       }
     }
   }
@@ -4589,7 +4598,9 @@ leave:
   {
     for (auto it_txs = txs.begin(); it_txs != txs.end(); it_txs++)
     {
-      m_ordinals.on_push_transaction(it_txs->first, m_db->height() - 1);
+      std::vector<uint64_t> outs_indexes;
+      get_tx_outputs_gindexs(get_transaction_hash(it_txs->first), outs_indexes);
+      m_ordinals.on_push_transaction(it_txs->first, m_db->height() - 1, outs_indexes);
     }
   }
   m_ordinals.set_block_height(m_db->height() - 1);

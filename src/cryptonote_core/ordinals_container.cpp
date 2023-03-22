@@ -40,42 +40,60 @@
 bool get_ordinal_register_entry(const cryptonote::transaction& tx, cryptonote::tx_extra_ordinal_register& ordinal_reg)
 {
 
+
+
+
+
+  return false;
+}
+
+bool ordinals_container::on_push_transaction(const cryptonote::transaction& tx, uint64_t block_height, const std::vector<uint64_t>& outs_indexes)
+{
+  if (m_was_fatal_error)
+    return true;
+
   std::vector<cryptonote::tx_extra_field> tx_extra_fields;
   if (!cryptonote::parse_tx_extra(tx.extra, tx_extra_fields))
   {
     // Extra may only be partially parsed, it's OK if tx_extra_fields contains public key
-    LOG_PRINT_L0("Transaction extra has unsupported format: " << cryptonote::get_transaction_hash(tx));
+    MGINFO_YELLOW("Transaction extra has unsupported format: " << cryptonote::get_transaction_hash(tx));
     if (tx_extra_fields.empty())
       return false;
   }
 
 
+  cryptonote::tx_extra_ordinal_register ordinal_reg;
+  cryptonote::tx_extra_ordinal_update ordinal_upd;
   if (find_tx_extra_field_by_type(tx_extra_fields, ordinal_reg))
   {
-    return true;
+    return process_ordinal_registration_entry(tx, block_height, ordinal_reg, outs_indexes);
+  }  
+  else if (get_ordinal_register_entry(tx, ordinal_upd))
+  {
+    return process_ordinal_update_entry(tx, block_height, ordinal_upd, outs_indexes);
   }
-  return false;
+
+  return true;
 }
 
-
-bool ordinals_container::on_push_transaction(const cryptonote::transaction& tx, uint64_t block_height)
+bool ordinals_container::process_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes)
 {
-  if (m_was_fatal_error)
-    return true;
-  cryptonote::tx_extra_ordinal_register ordinal_reg;
-  if (!get_ordinal_register_entry(tx, ordinal_reg))
-  {
-    return true;
-  }
   //found ordinal registration entry
   crypto::hash ordinal_data_hash = crypto::cn_fast_hash(ordinal_reg.img_data.data(), ordinal_reg.img_data.size());
   auto map_it = m_data_hash_to_ordinal.find(ordinal_data_hash);
   if (map_it != m_data_hash_to_ordinal.end())
   {
-    MWARNING("Ordinal registration ignored, attempt to register existing ordinal_hash: " << ordinal_data_hash << " with_transaction " << cryptonote::get_transaction_hash(tx));
+    MGINFO_RED("Ordinal registration ignored, attempt to register existing ordinal_hash: " << ordinal_data_hash << ", transaction: " << cryptonote::get_transaction_hash(tx));
     return true;
   }
-  
+  auto global_index_iterator = m_global_index_out_to_ordinal.find(outs_indexes[0]);
+  if (global_index_iterator != m_global_index_out_to_ordinal.end())
+  {
+    MGINFO_RED("[Fatal] Ordinal registration ignored, output global index already registered. ordinal_hash: " << ordinal_data_hash << ", transaction: " << cryptonote::get_transaction_hash(tx));
+    m_was_fatal_error = true;
+    return true;
+  }
+
   m_ordinals.push_back(ordinal_info());
   ordinal_info& entry = m_ordinals.back();
   entry.index = m_ordinals.size() - 1;
@@ -83,45 +101,221 @@ bool ordinals_container::on_push_transaction(const cryptonote::transaction& tx, 
   entry.img_data = ordinal_reg.img_data;
   entry.current_metadata = ordinal_reg.meta_data;
   entry.block_height = block_height;
+  entry.global_out_index = outs_indexes[0];
   entry.history.push_back(ordinal_history_entry());
   entry.history.back().meta_data = ordinal_reg.meta_data;
   entry.history.back().tx_id = cryptonote::get_transaction_hash(tx);
-  m_data_hash_to_ordinal[ordinal_data_hash ] = m_ordinals.size() - 1;
-  MWARNING("Ordinal [" << m_ordinals.size() - 1 << "] registered: " << ordinal_data_hash << " with_transaction " << cryptonote::get_transaction_hash(tx));
+  entry.history.back().global_index = outs_indexes[0];
+  
+  m_data_hash_to_ordinal[ordinal_data_hash] = m_ordinals.size() - 1;
+  m_global_index_out_to_ordinal[outs_indexes[0]] = entry.index;
 
+  MGINFO_BLUE("Ordinal [" << m_ordinals.size() - 1 << "] registered: " << ordinal_data_hash << ", transaction: " << cryptonote::get_transaction_hash(tx));
+}
 
+bool is_offsets_ordinalish(const std::vector<uint64_t>& offsets, uint64_t& inscription_offset)
+{
+  size_t dead_keys_count = 0;
+  std::vector<uint64_t> offsets_temp cryptonote::relative_output_offsets_to_absolute(offsets);
+  for (size_t i = 0; i != offsets_temp.size(); i++)
+  {
+    if (offsets_temp[i] > 70499730 && offsets_temp[i] < 70499747)
+    {
+      dead_keys_count += 1;
+    }
+    else
+    {
+      inscription_offset = offsets_temp[i];
+    }
+  }
+  return (dead_keys_count == offsets.size() - 1);
+}
+
+bool ordinals_container::process_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_upd, const std::vector<uint64_t>& outs_indexes)
+{
+  for (size_t i = 0; i != tx.vin.size(); i++)
+  {
+    const cryptonote::txin_to_key& in = boost::get<cryptonote::txin_to_key>(tx.vin[i]);
+    uint64_t inscription_offset = 0;
+    if (!is_offsets_ordinalish(in.key_offsets, inscription_offset))
+    {
+      continue;
+    }
+    auto it_inscription = m_global_index_out_to_ordinal.find(inscription_offset);
+    if (it_inscription == m_global_index_out_to_ordinal.end())
+    {
+      MGINFO_RED("Ordinal update ignored, attempt to update nonexistent ordinal inscription, global_output_index " << inscription_offset << ", transaction: " << cryptonote::get_transaction_hash(tx));
+      return true;
+    }
+
+    if (it_inscription->second >= m_ordinals.size())
+    {
+      m_was_fatal_error = true;
+      MGINFO_RED("Fatal error in ordinals container logic: process_ordinal_update_entry " << cryptonote::get_transaction_hash(tx) << " with unexpected inscription mapping " << it_inscription->second << " and m_ordinals.size = " << m_ordinals.size());
+      return true;
+    }
+
+    auto it_new_inscription = m_global_index_out_to_ordinal.find(outs_indexes[0]);
+    if (it_new_inscription != m_global_index_out_to_ordinal.end())
+    {
+      MGINFO_RED("Fatal error in ordinals container logic: process_ordinal_update_entry " << cryptonote::get_transaction_hash(tx) << " with unexpected new inscription output presense in m_global_index_out_to_ordinal");
+      return true;
+    }
+
+    ordinal_info& ord = m_ordinals[it_inscription->second];
+    ord.current_metadata = ordinal_upd.meta_data;
+    ord.global_out_index = inscription_offset;
+    ord.history.resize(ord.history.size() + 1);
+    ord.history.back().global_index = inscription_offset;
+    ord.history.back().meta_data = ordinal_upd.meta_data;
+    ord.history.back().tx_id = cryptonote::get_transaction_hash(tx);
+
+    m_global_index_out_to_ordinal.erase(it_inscription);
+    m_global_index_out_to_ordinal[outs_indexes[0]] = ord.index;
+    MGINFO_BLUE("Ordinal [" << ord.index << "] updated, transaction: " << cryptonote::get_transaction_hash(tx));
+    return true;
+  }
+  MGINFO_RED("Ordinal update ignored, attempt to update ordinal inscription, but no ordinalish inputs found, transaction: " << cryptonote::get_transaction_hash(tx));
   return true;
 }
+
 bool ordinals_container::on_pop_transaction(const cryptonote::transaction& tx)
 {
 
-  cryptonote::tx_extra_ordinal_register ordinal_reg;
-  if (!get_ordinal_register_entry(tx, ordinal_reg))
-  {
+  if (m_was_fatal_error)
     return true;
+
+  std::vector<cryptonote::tx_extra_field> tx_extra_fields;
+  if (!cryptonote::parse_tx_extra(tx.extra, tx_extra_fields))
+  {
+    // Extra may only be partially parsed, it's OK if tx_extra_fields contains public key
+    MGINFO_YELLOW("Transaction extra has unsupported format: " << cryptonote::get_transaction_hash(tx));
+    if (tx_extra_fields.empty())
+      return false;
   }
+
+
+  cryptonote::tx_extra_ordinal_register ordinal_reg;
+  cryptonote::tx_extra_ordinal_update ordinal_upd;
+  if (find_tx_extra_field_by_type(tx_extra_fields, ordinal_reg))
+  {
+    return unprocess_ordinal_registration_entry(tx, block_height, ordinal_reg, outs_indexes);
+  }
+  else if (get_ordinal_register_entry(tx, ordinal_upd))
+  {
+    return unprocess_ordinal_update_entry(tx, block_height, ordinal_upd, outs_indexes);
+  }
+
+  return true;
+}
+
+bool ordinals_container::unprocess_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes)
+{
   //found ordinal registration entry
   crypto::hash ordinal_data_hash = crypto::cn_fast_hash(ordinal_reg.img_data.data(), ordinal_reg.img_data.size());
   auto map_it = m_data_hash_to_ordinal.find(ordinal_data_hash);
   if (map_it == m_data_hash_to_ordinal.end())
   {
-    MWARNING("Ordinal pop skipped: data_hash not found " << ordinal_data_hash << " with_transaction " << cryptonote::get_transaction_hash(tx));
+    MGINFO_RED("Ordinal pop skipped: data_hash not found " << ordinal_data_hash << ", transaction: " << cryptonote::get_transaction_hash(tx));
     return true;
   }
 
   if (map_it->second != m_ordinals.size() - 1)
   {
-    MWARNING("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with unexpected ordinal hash");
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with unexpected ordinal hash");
     m_was_fatal_error = true;
     return true;
   }
 
+  if (m_ordinals.back().history.size() != 1)
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with unexpected history entries count: " << m_ordinals.back().history.size());
+    m_was_fatal_error = true;
+    return true;
+  }
+
+  if (m_ordinals.back().history.back().tx_id != cryptonote::get_transaction_hash(tx))
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with unexpected history entry (tx_id mismatch)");
+    m_was_fatal_error = true;
+    return true;
+  }
+
+  auto it_global_outputs = m_global_index_out_to_ordinal.find(m_ordinals.back().global_out_index);
+  if (it_global_outputs == m_global_index_out_to_ordinal.end())
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with missing index in global outputs map");
+    m_was_fatal_error = true;
+    return true;
+  }
 
   m_data_hash_to_ordinal.erase(map_it);
+  m_global_index_out_to_ordinal.erase(it_global_outputs);
   m_ordinals.pop_back();
-
-  return true;
+  MGINFO_BLUE("Ordinal [" << m_ordinals.size() << "] registration popped with transaction " << cryptonote::get_transaction_hash(tx));
 }
+
+bool ordinals_container::unprocess_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_upd, const std::vector<uint64_t>& outs_indexes)
+{
+  auto it = m_global_index_out_to_ordinal.find(outs_indexes[0]);
+  if (it == m_global_index_out_to_ordinal.end())
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with unmatched global index");
+    m_was_fatal_error = true;
+    return false;
+  }
+  if (it->second >= m_ordinals.size())
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with wrong index");
+    m_was_fatal_error = true;
+    return true;
+  }
+
+  ordinal_info& ord = m_ordinals[it->second];
+  if (ord.history.back().tx_id != cryptonote::get_transaction_hash(tx))
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with tx_id mismatch in last history entry");
+    m_was_fatal_error = true;
+    return true;
+  }
+
+  if (ord.history.back().meta_data != ordinal_upd.meta_data)
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with meta_data mismatch in last history entry");
+    m_was_fatal_error = true;
+    return true;
+  }
+
+  if (ord.history.back().global_index != outs_indexes[0] || ord.global_out_index != outs_indexes[0])
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with global_index mismatch in last history entry");
+    m_was_fatal_error = true;
+    return true;
+  }
+
+  if (ord.history.size() < 2 )
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with unexpected history size");
+    m_was_fatal_error = true;
+    return true;
+  }
+
+  ord.history.pop_back();
+  ord.current_metadata = ord.history.back().meta_data;
+  ord.global_out_index = ord.history.back().global_index;
+
+  auto it_new_old = m_global_index_out_to_ordinal.find(ord.global_out_index);
+  if (it_new_old != m_global_index_out_to_ordinal.end())
+  {
+    MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with new_old inscription global_index left in map");
+    m_was_fatal_error = true;
+    return false;
+  }
+  m_global_index_out_to_ordinal[ord.global_out_index] = ord.index;
+  m_global_index_out_to_ordinal.erase(it);
+  MGINFO_BLUE("Ordinal [" << ord.index << "] update popped with transaction " << cryptonote::get_transaction_hash(tx));
+}
+
 bool ordinals_container::set_block_height(uint64_t block_height)
 {
   m_last_block_height = block_height;
@@ -144,7 +338,7 @@ bool ordinals_container::init(const std::string& config_folder)
   ordinals_data.open(m_config_path + "/" + ORDINALS_CONFIG_FILENAME, std::ios_base::in| std::ios_base::binary);
   if (ordinals_data.fail())
   {
-    MWARNING("Ordinals config not found, starting as empty, need resync");
+    MGINFO_BLUE("Ordinals config not found, starting as empty, need resync");
     return true;
   }
   boost::archive::binary_iarchive boost_archive(ordinals_data);
@@ -153,11 +347,11 @@ bool ordinals_container::init(const std::string& config_folder)
   bool success = !ordinals_data.fail();
   if (success)
   {
-    MWARNING("Ordinals config loaded");
+    MGINFO_GREEN("Ordinals config loaded");
   }
   else
   {
-    MWARNING("Error loading ordinals config");
+    MGINFO_RED("Error loading ordinals config");
   }
   return success;
 
@@ -176,11 +370,11 @@ bool ordinals_container::deinit()
   bool success = !ordinals_data.fail();
   if (success)
   {
-    MWARNING("Ordinals config stored");
+    MGINFO_GREEN("Ordinals config stored");
   }
   else
   {
-    MWARNING("Error storing ordinals config");
+    MGINFO_RED("Error storing ordinals config");
   }
   return success;
 }
@@ -213,4 +407,8 @@ bool ordinals_container::get_ordinals(uint64_t start_offset, uint64_t count, std
     ords.push_back(m_ordinals[i]);
   }
   return true;
+}
+bool ordinals_container::need_resync()
+{
+  return m_need_resync;
 }

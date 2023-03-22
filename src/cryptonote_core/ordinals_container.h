@@ -64,14 +64,16 @@
 
 struct ordinal_history_entry
 {
-  crypto::hash tx_id;
+  crypto::hash tx_id = crypto::null_hash;
   std::string meta_data;
+  uint64_t global_index = 0;
 
   template <class Archive>
   inline void serialize(Archive& a, const unsigned int ver)
   {
     a& tx_id;
     a& meta_data;
+    a& global_index;
   }
 
 };
@@ -79,11 +81,12 @@ struct ordinal_history_entry
 
 struct ordinal_info
 {
-  uint64_t index;
-  crypto::hash img_data_hash;
+  uint64_t index = 0;
+  crypto::hash img_data_hash = crypto::null_hash;
   std::string img_data;
   std::string current_metadata;
-  uint64_t block_height;
+  uint64_t block_height = 0;
+  uint64_t global_out_index = 0;
   std::vector<ordinal_history_entry> history;
 
 
@@ -95,6 +98,7 @@ struct ordinal_info
     a& img_data;
     a& current_metadata;
     a& block_height;
+    a& global_out_index;
     a& history;
   }
 
@@ -103,7 +107,7 @@ struct ordinal_info
 
 BOOST_CLASS_VERSION(ordinal_history_entry, 1)
 BOOST_CLASS_VERSION(ordinal_info, 1)
-
+BOOST_CLASS_VERSION(ordinals_container, 2)
 
 class ordinals_container
 {
@@ -111,12 +115,14 @@ class ordinals_container
   std::vector<ordinal_info> m_ordinals;
   bool m_was_fatal_error = false;
   uint64_t m_last_block_height = 0;
+  bool m_need_resync = false;
+  std::map<uint64_t, uint64_t> m_global_index_out_to_ordinal; // global output indoex -> index in m_ordinals vector
 
   std::string m_config_path;
 
 public: 
-  bool on_push_transaction(const cryptonote::transaction& tx, uint64_t block_height);
-  bool on_pop_transaction(const cryptonote::transaction& tx);
+  bool on_push_transaction(const cryptonote::transaction& tx, uint64_t block_height, const std::vector<uint64_t>& outs_indexes);
+  bool on_pop_transaction(const cryptonote::transaction& tx, uint64_t block_height, const std::vector<uint64_t>& outs_indexes);
   bool set_block_height(uint64_t block_height);
   uint64_t get_block_height();
   bool init(const std::string& config_folder);
@@ -125,16 +131,29 @@ public:
   bool get_ordinal_by_index(uint64_t index, ordinal_info& oi);
   bool get_ordinal_by_hash(const crypto::hash& h, ordinal_info& oi);
   bool get_ordinals(uint64_t start_offset, uint64_t count, std::vector<ordinal_info>& ords);
+  bool need_resync();
 
 
   template <class Archive>
   inline void serialize(Archive& a, const unsigned int ver)
   {
+    if (ver < 2)
+    {
+      m_need_resync = true;
+    }
     a& m_data_hash_to_ordinal;
     a& m_ordinals;
     a& m_was_fatal_error;
     a& m_last_block_height;
+    a& m_global_index_out_to_ordinal;
   }
+
+private:
+  bool process_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
+  bool process_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
+
+  bool unprocess_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
+  bool unprocess_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
 
 };
 
