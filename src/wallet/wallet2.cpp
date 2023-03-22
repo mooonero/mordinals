@@ -8801,61 +8801,101 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
       // pick real out first (it will be sorted when done)
       outs.back().push_back(std::make_tuple(td.m_global_output_index, td.get_public_key(), mask));
 
-      // then pick outs from an existing ring, if any
-      if (td.m_key_image_known && !td.m_key_image_partial)
+      if (td.m_is_ordinal)
       {
-        const auto it = existing_rings.find(td.m_key_image);
-        if (it != existing_rings.end())
+        // Request specific outputs for ordinal
+        COMMAND_RPC_GET_OUTPUTS_BIN::request ord_decoys_req = AUTO_VAL_INIT(ord_decoys_req);
+        COMMAND_RPC_GET_OUTPUTS_BIN::response ord_decoys_resp = AUTO_VAL_INIT(ord_decoys_resp);
+        ord_decoys_req.get_txid = false;
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499731 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499732 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499733 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499734 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499735 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499736 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499737 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499738 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499739 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499740 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499741 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499742 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499743 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499744 });
+        ord_decoys_req.outputs.push_back(get_outputs_out{ 0, 70499746 });
+
+        const boost::lock_guard<boost::recursive_mutex> lock{ m_daemon_rpc_mutex };
+        uint64_t pre_call_credits = m_rpc_payment_state.credits;
+        ord_decoys_req.client = get_client_signature();
+        bool r = epee::net_utils::invoke_http_bin("/get_outs.bin", ord_decoys_req, ord_decoys_resp, *m_http_client, rpc_timeout);
+        THROW_ON_RPC_RESPONSE_ERROR(r, {}, ord_decoys_resp, "get_outs.bin", error::get_outs_error, get_rpc_status(ord_decoys_resp.status));
+        THROW_WALLET_EXCEPTION_IF(ord_decoys_resp.outs.size() != ord_decoys_req.outputs.size(), error::wallet_internal_error,
+          "daemon returned wrong response for get_outs.bin, wrong amounts count = " +
+          std::to_string(ord_decoys_resp.outs.size()) + ", expected " + std::to_string(ord_decoys_req.outputs.size()));
+        check_rpc_cost("/get_outs.bin", ord_decoys_resp.credits, pre_call_credits, ord_decoys_resp.outs.size() * COST_PER_OUT);
+        for (size_t i = 0; i != ord_decoys_req.outputs.size(); i++)
         {
-          const std::vector<uint64_t> &ring = it->second;
-          for (uint64_t out: ring)
+          outs.back().push_back(std::make_tuple(ord_decoys_req.outputs[i].index, ord_decoys_resp.outs[i].key, ord_decoys_resp.outs[i].mask));
+        }
+        THROW_WALLET_EXCEPTION_IF(outs.back().size() != fake_outputs_count + 1, error::wallet_internal_error, "Wrong ");
+      }
+      else
+      {
+        // then pick outs from an existing ring, if any
+        if (td.m_key_image_known && !td.m_key_image_partial)
+        {
+          const auto it = existing_rings.find(td.m_key_image);
+          if (it != existing_rings.end())
           {
-            if (out < num_outs)
+            const std::vector<uint64_t>& ring = it->second;
+            for (uint64_t out : ring)
             {
-              if (out != td.m_global_output_index)
+              if (out < num_outs)
               {
-                bool found = false;
-                for (size_t o = 0; o < requested_outputs_count; ++o)
+                if (out != td.m_global_output_index)
                 {
-                  size_t i = base + o;
-                  if (req.outputs[i].index == out)
+                  bool found = false;
+                  for (size_t o = 0; o < requested_outputs_count; ++o)
                   {
-                    LOG_PRINT_L2("Index " << i << "/" << requested_outputs_count << ": idx " << req.outputs[i].index << " (real " << td.m_global_output_index << "), unlocked " << daemon_resp.outs[i].unlocked << ", key " << daemon_resp.outs[i].key << " (from existing ring)");
-                    tx_add_fake_output(outs, req.outputs[i].index, daemon_resp.outs[i].key, daemon_resp.outs[i].mask, td.m_global_output_index, daemon_resp.outs[i].unlocked, valid_public_keys_cache);
-                    found = true;
-                    break;
+                    size_t i = base + o;
+                    if (req.outputs[i].index == out)
+                    {
+                      LOG_PRINT_L2("Index " << i << "/" << requested_outputs_count << ": idx " << req.outputs[i].index << " (real " << td.m_global_output_index << "), unlocked " << daemon_resp.outs[i].unlocked << ", key " << daemon_resp.outs[i].key << " (from existing ring)");
+                      tx_add_fake_output(outs, req.outputs[i].index, daemon_resp.outs[i].key, daemon_resp.outs[i].mask, td.m_global_output_index, daemon_resp.outs[i].unlocked, valid_public_keys_cache);
+                      found = true;
+                      break;
+                    }
                   }
+                  THROW_WALLET_EXCEPTION_IF(!found, error::wallet_internal_error, "Falied to find existing ring output in daemon out data");
                 }
-                THROW_WALLET_EXCEPTION_IF(!found, error::wallet_internal_error, "Falied to find existing ring output in daemon out data");
               }
             }
           }
         }
-      }
 
-      // then pick others in random order till we reach the required number
-      // since we use an equiprobable pick here, we don't upset the triangular distribution
-      std::vector<size_t> order;
-      order.resize(requested_outputs_count);
-      for (size_t n = 0; n < order.size(); ++n)
-        order[n] = n;
-      std::shuffle(order.begin(), order.end(), crypto::random_device{});
+        // then pick others in random order till we reach the required number
+        // since we use an equiprobable pick here, we don't upset the triangular distribution
+        std::vector<size_t> order;
+        order.resize(requested_outputs_count);
+        for (size_t n = 0; n < order.size(); ++n)
+          order[n] = n;
+        std::shuffle(order.begin(), order.end(), crypto::random_device{});
 
-      LOG_PRINT_L2("Looking for " << (fake_outputs_count+1) << " outputs of size " << print_money(td.is_rct() ? 0 : td.amount()));
-      for (size_t o = 0; o < requested_outputs_count && outs.back().size() < fake_outputs_count + 1; ++o)
-      {
-        size_t i = base + order[o];
-        LOG_PRINT_L2("Index " << i << "/" << requested_outputs_count << ": idx " << req.outputs[i].index << " (real " << td.m_global_output_index << "), unlocked " << daemon_resp.outs[i].unlocked << ", key " << daemon_resp.outs[i].key);
-        tx_add_fake_output(outs, req.outputs[i].index, daemon_resp.outs[i].key, daemon_resp.outs[i].mask, td.m_global_output_index, daemon_resp.outs[i].unlocked, valid_public_keys_cache);
-      }
-      if (outs.back().size() < fake_outputs_count + 1)
-      {
-        scanty_outs[td.is_rct() ? 0 : td.amount()] = outs.back().size();
-      }
-      else
-      {
-        // sort the subsection, so any spares are reset in order
-        std::sort(outs.back().begin(), outs.back().end(), [](const get_outs_entry &a, const get_outs_entry &b) { return std::get<0>(a) < std::get<0>(b); });
+        LOG_PRINT_L2("Looking for " << (fake_outputs_count + 1) << " outputs of size " << print_money(td.is_rct() ? 0 : td.amount()));
+        for (size_t o = 0; o < requested_outputs_count && outs.back().size() < fake_outputs_count + 1; ++o)
+        {
+          size_t i = base + order[o];
+          LOG_PRINT_L2("Index " << i << "/" << requested_outputs_count << ": idx " << req.outputs[i].index << " (real " << td.m_global_output_index << "), unlocked " << daemon_resp.outs[i].unlocked << ", key " << daemon_resp.outs[i].key);
+          tx_add_fake_output(outs, req.outputs[i].index, daemon_resp.outs[i].key, daemon_resp.outs[i].mask, td.m_global_output_index, daemon_resp.outs[i].unlocked, valid_public_keys_cache);
+        }
+        if (outs.back().size() < fake_outputs_count + 1)
+        {
+          scanty_outs[td.is_rct() ? 0 : td.amount()] = outs.back().size();
+        }
+        else
+        {
+          // sort the subsection, so any spares are reset in order
+          std::sort(outs.back().begin(), outs.back().end(), [](const get_outs_entry& a, const get_outs_entry& b) { return std::get<0>(a) < std::get<0>(b); });
+        }
       }
       base += requested_outputs_count;
     }
@@ -10171,7 +10211,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       MDEBUG("Ignoring output " << i << " of amount " << print_money(td.amount()) << " which is below fractional threshold " << print_money(fractional_threshold));
       continue;
     }
-    if (!is_spent(td, false) && !td.m_frozen && !td.m_key_image_partial && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
+    if (!is_spent(td, false) && !
+      td.m_is_ordinal && !td.m_frozen && !td.m_key_image_partial && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
       {
@@ -10287,6 +10328,19 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   std::vector<size_t>* unused_transfers_indices = &unused_transfers_indices_per_subaddr[0].second;
   std::vector<size_t>* unused_dust_indices      = &unused_dust_indices_per_subaddr[0].second;
   
+  // handle ordinal if needed
+  if (dsts[0].is_ordinal && dsts[0].ordinal_origin != crypto::null_hash)
+  {
+    // locate ordinal first
+    auto it = std::find_if(m_ordinals.begin(), m_ordinals.end(),
+      [&](const auto& pair) { return pair.second.ordinal_hash == dsts[0].ordinal_origin; });
+    THROW_WALLET_EXCEPTION_IF(it == m_ordinals.end(), error::wallet_internal_error, "Ordinal not found");
+    
+    uint64_t transfer_index = it->first;
+    txes.back().selected_transfers.push_back(transfer_index);
+    MDEBUG("Ordinal prepared for transfer");
+  }
+
   hwdev.set_mode(hw::device::TRANSACTION_CREATE_FAKE);
   while ((!dsts.empty() && dsts[0].amount > 0) || adding_fee || !preferred_inputs.empty() || should_pick_a_second_output(use_rct, txes.back().selected_transfers.size(), *unused_transfers_indices, *unused_dust_indices)) {
     TX &tx = txes.back();

@@ -431,6 +431,7 @@ private:
       crypto::hash m_tx_hash;
       uint64_t m_amount;
       amounts_container m_amounts;
+
       uint64_t m_fee;
       uint64_t m_block_height;
       uint64_t m_unlock_time;
@@ -1554,6 +1555,7 @@ private:
     bool is_synced();
 
     std::map<uint64_t, wallet_ordinal> get_my_ordinals(); 
+    bool transfer_ordinal(const crypto::hash& ordinal_hash);
 
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(const std::vector<std::pair<double, double>> &fee_levels);
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees);

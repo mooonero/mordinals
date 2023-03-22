@@ -85,6 +85,17 @@ namespace cryptonote
     std::string get_command_usage(const std::vector<std::string> &args);
   private:
 
+    struct transfer_main_adv_options
+    {     
+      transfer_main_adv_options(){}
+      bool do_burn = false;
+      bool do_mint_ordinal = false;
+      tx_extra_ordinal_register ord_reg;
+      bool do_transfer_ordinal = false;
+      std::string new_meta_info;
+      crypto::hash ordinal_hash = crypto::null_hash;
+    };
+
     enum ResetType { ResetNone, ResetSoft, ResetHard, ResetSoftKeepKI };
 
     bool handle_command_line(const boost::program_options::variables_map& vm);
@@ -170,10 +181,11 @@ namespace cryptonote
     bool show_incoming_transfers(const std::vector<std::string> &args);
     bool show_payments(const std::vector<std::string> &args);
     bool show_blockchain_height(const std::vector<std::string> &args);
-    bool transfer_main(int transfer_type, const std::vector<std::string> &args, bool called_by_mms, bool do_burn = false, bool do_mint_ordinal = false, const tx_extra_ordinal_register& ordinal = tx_extra_ordinal_register());
+    bool transfer_main(int transfer_type, const std::vector<std::string> &args, bool called_by_mms, const transfer_main_adv_options& adv_options = transfer_main_adv_options());
     bool transfer(const std::vector<std::string> &args);
     bool burn(const std::vector<std::string>& args_);
     bool mint_ordinal(const std::vector<std::string>& args_);
+    bool transfer_ordinal(const std::vector<std::string>& args_);
     bool list_my_ordinals(const std::vector<std::string> &args_);
     bool locked_transfer(const std::vector<std::string> &args);
     bool locked_sweep_all(const std::vector<std::string> &args);

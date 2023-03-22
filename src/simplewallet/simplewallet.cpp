@@ -198,6 +198,7 @@ namespace
   const char* USAGE_PAYMENT_ID("payment_id");
   const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <amount>) [<payment_id>]");
   const char* USAGE_BURN("burn <amount>");
+  const char* USAGE_TRANSFER_ORDINAL("transfer_ordinal <ordinal_hash> <address> [<path_to_new_meta_file>]");
   const char* USAGE_MINT_ORDINAL("mint_ordinal <amount_for_out> <path_to_img_data_file> <path_to_meta_file> [destination_address]");
   const char* USAGE_LIST_MY_ORDINALS("list_my_ordinals");
   const char* USAGE_LOCKED_TRANSFER("locked_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <addr> <amount>) <lockblocks> [<payment_id (obsolete)>]");
@@ -3296,13 +3297,15 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("burn", boost::bind(&simple_wallet::on_command, this, &simple_wallet::burn, _1),
                            tr(USAGE_BURN),
                            tr("Burn <amount>"));
-    m_cmd_binder.set_handler("mint_ordinal", boost::bind(&simple_wallet::on_command, this, &simple_wallet::mint_ordinal, _1),
+  m_cmd_binder.set_handler("mint_ordinal", boost::bind(&simple_wallet::on_command, this, &simple_wallet::mint_ordinal, _1),
                            tr(USAGE_MINT_ORDINAL),
                            tr("mint_ordinal <amount_for_out> <path_to_img_data_file> <path_to_meta_file> [destination_address]"));
-    m_cmd_binder.set_handler("list_my_ordinals", boost::bind(&simple_wallet::on_command, this, &simple_wallet::list_my_ordinals, _1),
+  m_cmd_binder.set_handler("list_my_ordinals", boost::bind(&simple_wallet::on_command, this, &simple_wallet::list_my_ordinals, _1),
                            tr(USAGE_LIST_MY_ORDINALS),
                            tr("List ordinals that controlled by wallet"));
-
+  m_cmd_binder.set_handler("transfer_ordinal", boost::bind(&simple_wallet::on_command, this, &simple_wallet::transfer_ordinal, _1),
+                           tr(USAGE_TRANSFER_ORDINAL),
+                           tr("Transfer ordinal ownership"));
   m_cmd_binder.set_handler("locked_transfer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::locked_transfer,_1),
                            tr(USAGE_LOCKED_TRANSFER),
@@ -6556,11 +6559,15 @@ bool simple_wallet::on_command(bool (simple_wallet::*cmd)(const std::vector<std:
   return (this->*cmd)(args);
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::string> &args_, bool called_by_mms, bool do_burn, bool do_mint_ordinal, const tx_extra_ordinal_register& ordinal)
+bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::string> &args_, bool called_by_mms, const transfer_main_adv_options& adv_options)
 {
 //  "transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> <amount> [<payment_id>]"
   if (!try_connect_to_daemon())
     return false;
+
+  bool do_burn = adv_options.do_burn;
+  bool do_mint_ordinal = adv_options.do_mint_ordinal;
+  const tx_extra_ordinal_register& ordinal = adv_options.ord_reg;
 
   std::vector<std::string> local_args = args_;
 
@@ -6759,6 +6766,11 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     if (do_mint_ordinal && dsts.size() == 0)
     {
       de.is_ordinal = true;
+    }
+    else if (adv_options.do_transfer_ordinal  && dsts.size() == 0)
+    {
+      de.is_ordinal = true;
+      de.ordinal_origin = adv_options.ordinal_hash;
     }
     dsts.push_back(de);
   }
@@ -7045,11 +7057,55 @@ bool simple_wallet::burn(const std::vector<std::string>& args_)
   }
   std::vector<std::string> args_local;
   cryptonote::account_base acc;
-  acc.generate();
   args_local.push_back(acc.get_public_address_str(cryptonote::MAINNET));
   args_local.push_back(args_[0]);
-  transfer_main(Transfer, args_local, false, true);
+  transfer_main_adv_options adv_opt;
+  adv_opt.do_burn = true;
+  transfer_main(Transfer, args_local, false, adv_opt);
   return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::transfer_ordinal(const std::vector<std::string>& args_)
+{
+  if (args_.size() < 2 || args_.size() > 3)
+  {
+    PRINT_USAGE(USAGE_TRANSFER_ORDINAL);
+    return true;
+  }
+  transfer_main_adv_options adv_opt;
+  adv_opt.do_transfer_ordinal = true;
+  if(!epee::string_tools::hex_to_pod(args_[0], adv_opt.ordinal_hash))
+  {
+    fail_msg_writer() << "Error on parsing ordinal hash: " << args_[0];
+    return true;
+  }
+  if (args_.size() >= 2)
+  {
+    // Load new meta info
+    bool r = epee::file_io_utils::load_file_to_string(args_[2], adv_opt.new_meta_info);
+    if (!r)
+    {
+      fail_msg_writer() << "Error on reading meta data file for ordinal: " << args_[2];
+      return true;
+    }
+  }
+
+  std::map<uint64_t, tools::wallet2::wallet_ordinal> ords = m_wallet->get_my_ordinals();
+
+  // TODO: need to optimize this, consider utilizing a multiindex
+  auto it = std::find_if(ords.begin(), ords.end(),
+    [&](const auto& pair) { return pair.second.ordinal_hash == adv_opt.ordinal_hash; });
+
+  if (it == ords.end())
+  {
+    LOG_PRINT_L0("Error on finding ordinal with id " << adv_opt.ordinal_hash);
+    return false;
+  }
+  std::vector<std::string> args_local;
+  args_local.push_back(args_[1]);
+  args_local.push_back("0.0001");
+
+  return transfer_main(Transfer, args_local, false, adv_opt);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::mint_ordinal(const std::vector<std::string>& args_)
@@ -7060,14 +7116,16 @@ bool simple_wallet::mint_ordinal(const std::vector<std::string>& args_)
     return true;
   }
 
-  cryptonote::tx_extra_ordinal_register ord_reg ;
-  bool r = epee::file_io_utils::load_file_to_string(args_[1], ord_reg.img_data);
+  transfer_main_adv_options adv_opt;
+  adv_opt.do_mint_ordinal = true;
+
+  bool r = epee::file_io_utils::load_file_to_string(args_[1], adv_opt.ord_reg.img_data);
   if (!r)
   {
     fail_msg_writer() << "Error on reading data file for ordinal: " << args_[1];
     return true;
   }
-  r = epee::file_io_utils::load_file_to_string(args_[2], ord_reg.meta_data);
+  r = epee::file_io_utils::load_file_to_string(args_[2], adv_opt.ord_reg.meta_data);
   if (!r)
   {
     fail_msg_writer() << "Error on reading meta data file for ordinal: " << args_[2];
@@ -7084,7 +7142,7 @@ bool simple_wallet::mint_ordinal(const std::vector<std::string>& args_)
     main_args.push_back(m_wallet->get_address_as_str());
   }
   main_args.push_back(args_[0]);
-  return transfer_main(Transfer, main_args, false, false, true, ord_reg);
+  return transfer_main(Transfer, main_args, false, adv_opt);
 
 }
 bool simple_wallet::list_my_ordinals(const std::vector<std::string> &args_)

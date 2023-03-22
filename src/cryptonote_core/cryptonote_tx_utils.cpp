@@ -46,6 +46,9 @@ using namespace epee;
 
 using namespace crypto;
 
+const static crypto::ec_point dead_point {'\xde', '\xad', '\xbe', '\xef', '\xde', '\xad', '\xbe', '\xef', '\xde', '\xad', '\xbe', '\xef', '\xde', '\xad', '\xbe', '\xef', '\xde', '\xad', '\xbe', '\xef', '\xde', '\xad', '\xbe', '\xef', '\xde', '\xad', '\xbe', '\xef', '\xde', '\xad', '\x0', '\xf'};
+const static crypto::public_key dead_key = *(crypto::public_key*)&dead_point;
+
 namespace cryptonote
 {
   //---------------------------------------------------------------
@@ -418,7 +421,7 @@ namespace cryptonote
                                            use_view_tags, view_tag);
       if (dst_entr.addr.m_spend_public_key == cryptonote::zero_public_key && dst_entr.addr.m_view_public_key == cryptonote::zero_public_key)
       {
-        out_eph_public_key = cryptonote::zero_public_key;
+        out_eph_public_key = dead_key;
         LOG_PRINT_L0("Creating burn output...(out_eph_public_key=" << out_eph_public_key  << ")");
       }
       if (dst_entr.is_ordinal)
