@@ -474,7 +474,7 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
     uint64_t h = m_db->height();
     if (h > ORDINAL_HEIGHT_START)
     {
-      MWARNING("Ordinals: rescanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
+      MINFO("Ordinals: rescanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
       for (uint64_t h_ord = ORDINAL_HEIGHT_START; h_ord != m_db->height(); h_ord++)
       {
         block b_ord = m_db->get_block_from_height(h_ord);
@@ -493,15 +493,42 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
         }
         m_ordinals.set_block_height(h_ord);
       }
-      MWARNING("Ordinals: rescanning finished! Current height is " << m_db->height());
+      MINFO("Ordinals: rescanning finished! Current height is " << m_db->height());
     }
   }
+//#define TEST_ORDINALS_POPS
+
+#ifdef TEST_ORDINALS_POPS
+  
+  MINFO("Ordinals: revers scanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
+  for (uint64_t h_ord = m_db->height()-1; h_ord != ORDINAL_HEIGHT_START; h_ord--)
+  {
+    block b_ord = m_db->get_block_from_height(h_ord);
+    for (const auto& tx_id : boost::adaptors::reverse(b_ord.tx_hashes))
+    {
+      transaction ord_tx;
+      if (!m_db->get_tx(tx_id, ord_tx))
+      {
+        MERROR("Ordinals: resync history failed for block  " << h_ord << " and tx " << tx_id);
+        return false;
+      }
+      std::vector<uint64_t> outs_indexes;
+      get_tx_outputs_gindexs(tx_id, outs_indexes);
+
+      m_ordinals.on_pop_transaction(ord_tx, h_ord, outs_indexes);
+    }
+    m_ordinals.set_block_height(h_ord);
+  }
+  MINFO("Ordinals: rescanning finished! Current height is " << m_db->height());
+
+  return false;
+#endif 
   if (m_db->height() != m_ordinals.get_block_height() + 1)
   {
     LOG_ERROR("Ordinals initialization failed: height missmatch() " << m_db->height() << " & " << m_ordinals.get_block_height() + 1);
     return false;
   }
-  MWARNING("Ordinals initialized with " << m_ordinals.get_ordinals_count() << " items");
+  MINFO("Ordinals initialized with " << m_ordinals.get_ordinals_count() << " items");
 
   return true;
 }
