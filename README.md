@@ -193,12 +193,6 @@ You need to make the `simplewallet` and `daemon` targets to use mordinals.
 * Run Monero with `monerod`
 
 Dependencies need to be built with -fPIC. Static libraries usually aren't, so you may have to build them yourself with -fPIC. Refer to their documentation for how to build them.
-
-* **Optional**: build documentation in `doc/html` (omit `HAVE_DOT=YES` if `graphviz` is not installed):
-
-    ```bash
-    HAVE_DOT=YES doxygen Doxyfile
-    ```
     
 ## Running monerod
 
