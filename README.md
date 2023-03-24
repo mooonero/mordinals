@@ -65,7 +65,7 @@ Balance: 0.121121000000, unlocked balance: 0.121121000000
 This command will mint an ordinal that will be owned by your wallet (or the destination_address wallet if you specified that field).
 **IMPORTANT!!!!** Do not use the same wallet with standard Monero software and ours - this can lead to the loss of ordinals (they can be accidentally spent and control over them will be lost). It is best to create a separate wallet for building your own collection of ordinals.
 
-Check out newly registered ordinals on mordinals.org, or view them on your own monerod with ordinals_viewer.html
+Check out newly registered ordinals on mordinals.org, or view them on your own monerod using the included `ordinals_viewer.html` file.
 
 ## Compiling Mordinals from source
 
