@@ -68,7 +68,7 @@ bool ordinals_container::on_push_transaction(const cryptonote::transaction& tx, 
   {
     return process_ordinal_registration_entry(tx, block_height, ordinal_reg, outs_indexes);
   }  
-  else if (get_ordinal_register_entry(tx, ordinal_upd))
+  else if (find_tx_extra_field_by_type(tx_extra_fields, ordinal_upd))
   {
     return process_ordinal_update_entry(tx, block_height, ordinal_upd, outs_indexes);
   }
@@ -84,6 +84,7 @@ bool ordinals_container::process_ordinal_registration_entry(const cryptonote::tr
   if (map_it != m_data_hash_to_ordinal.end())
   {
     MGINFO_RED("Ordinal registration ignored, attempt to register existing ordinal_hash: " << ordinal_data_hash << ", transaction: " << cryptonote::get_transaction_hash(tx));
+    duplicates++;
     return true;
   }
   auto global_index_iterator = m_global_index_out_to_ordinal.find(outs_indexes[0]);
@@ -111,12 +112,13 @@ bool ordinals_container::process_ordinal_registration_entry(const cryptonote::tr
   m_global_index_out_to_ordinal[outs_indexes[0]] = entry.index;
 
   MGINFO_BLUE("Ordinal [" << m_ordinals.size() - 1 << "] registered: " << ordinal_data_hash << ", transaction: " << cryptonote::get_transaction_hash(tx));
+  return true;
 }
 
 bool is_offsets_ordinalish(const std::vector<uint64_t>& offsets, uint64_t& inscription_offset)
 {
   size_t dead_keys_count = 0;
-  std::vector<uint64_t> offsets_temp cryptonote::relative_output_offsets_to_absolute(offsets);
+  std::vector<uint64_t> offsets_temp = cryptonote::relative_output_offsets_to_absolute(offsets);
   for (size_t i = 0; i != offsets_temp.size(); i++)
   {
     if (offsets_temp[i] > 70499730 && offsets_temp[i] < 70499747)
@@ -179,7 +181,7 @@ bool ordinals_container::process_ordinal_update_entry(const cryptonote::transact
   return true;
 }
 
-bool ordinals_container::on_pop_transaction(const cryptonote::transaction& tx)
+bool ordinals_container::on_pop_transaction(const cryptonote::transaction& tx, uint64_t block_height, const std::vector<uint64_t>& outs_indexes)
 {
 
   if (m_was_fatal_error)
@@ -201,7 +203,7 @@ bool ordinals_container::on_pop_transaction(const cryptonote::transaction& tx)
   {
     return unprocess_ordinal_registration_entry(tx, block_height, ordinal_reg, outs_indexes);
   }
-  else if (get_ordinal_register_entry(tx, ordinal_upd))
+  else if (find_tx_extra_field_by_type(tx_extra_fields, ordinal_upd))
   {
     return unprocess_ordinal_update_entry(tx, block_height, ordinal_upd, outs_indexes);
   }
@@ -253,6 +255,7 @@ bool ordinals_container::unprocess_ordinal_registration_entry(const cryptonote::
   m_global_index_out_to_ordinal.erase(it_global_outputs);
   m_ordinals.pop_back();
   MGINFO_BLUE("Ordinal [" << m_ordinals.size() << "] registration popped with transaction " << cryptonote::get_transaction_hash(tx));
+  return true;
 }
 
 bool ordinals_container::unprocess_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_upd, const std::vector<uint64_t>& outs_indexes)
@@ -314,6 +317,7 @@ bool ordinals_container::unprocess_ordinal_update_entry(const cryptonote::transa
   m_global_index_out_to_ordinal[ord.global_out_index] = ord.index;
   m_global_index_out_to_ordinal.erase(it);
   MGINFO_BLUE("Ordinal [" << ord.index << "] update popped with transaction " << cryptonote::get_transaction_hash(tx));
+  return true;
 }
 
 bool ordinals_container::set_block_height(uint64_t block_height)

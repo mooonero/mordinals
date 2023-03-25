@@ -3646,9 +3646,8 @@ namespace cryptonote
       ordinal_info ord_info;
       if (!ordin.get_ordinal_by_hash(ord_hash, ord_info))
       {
-        error_resp.code = CORE_RPC_ERROR_CODE_NOT_FOUND;
-        error_resp.message = "Hash not found";
-        return false;
+        res.status = CORE_RPC_STATUS_NOT_FOUND;
+        return true;
       }
       ordinal_info_to_rpc(ord_info, static_cast<ordinal_rpc_info&>(res));
       res.status = CORE_RPC_STATUS_OK;

@@ -465,7 +465,7 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
 
   if (!m_ordinals.init(config_folder))
   {
-    LOG_ERROR("Ordinals initialization failed");
+    MERROR("Ordinals initialization failed");
     return false;
   }
   if (m_ordinals.get_block_height() == 0 || m_ordinals.need_resync())
@@ -525,10 +525,10 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
 #endif 
   if (m_db->height() != m_ordinals.get_block_height() + 1)
   {
-    LOG_ERROR("Ordinals initialization failed: height missmatch() " << m_db->height() << " & " << m_ordinals.get_block_height() + 1);
+    MERROR("Ordinals initialization failed: height missmatch() " << m_db->height() << " & " << m_ordinals.get_block_height() + 1);
     return false;
   }
-  MINFO("Ordinals initialized with " << m_ordinals.get_ordinals_count() << " items");
+  MWARNING("Ordinals initialized with " << m_ordinals.get_ordinals_count() << " items");
 
   return true;
 }

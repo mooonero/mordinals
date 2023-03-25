@@ -6178,6 +6178,10 @@ void wallet2::get_transfers(wallet2::transfer_container& incoming_transfers) con
 {
   incoming_transfers = m_transfers;
 }
+const wallet2::transfer_container& wallet2::get_transfers() const
+{
+  return m_transfers;
+}
 //----------------------------------------------------------------------------------------------------
 void wallet2::get_payments(const crypto::hash& payment_id, std::list<wallet2::payment_details>& payments, uint64_t min_height, const boost::optional<uint32_t>& subaddr_account, const std::set<uint32_t>& subaddr_indices) const
 {
@@ -8837,6 +8841,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
           outs.back().push_back(std::make_tuple(ord_decoys_req.outputs[i].index, ord_decoys_resp.outs[i].key, ord_decoys_resp.outs[i].mask));
         }
         THROW_WALLET_EXCEPTION_IF(outs.back().size() != fake_outputs_count + 1, error::wallet_internal_error, "Wrong ");
+        std::sort(outs.back().begin(), outs.back().end(), [](const tools::wallet2::get_outs_entry& i0, const tools::wallet2::get_outs_entry& i1){return std::get<0>(i0) < std::get<0>(i1);});
       }
       else
       {
@@ -10073,6 +10078,14 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   hw::reset_mode rst(hwdev);  
 
   auto original_dsts = dsts;
+  bool is_ordinal_transfer = false;
+  size_t extra_inputs_reserved_fee = 0;
+  if(dsts[0].is_ordinal && dsts[0].ordinal_origin != crypto::null_hash)
+  {
+    is_ordinal_transfer = true;
+    //extra_inputs_reserved_fee = 1;
+  }
+
 
   if(m_light_wallet) {
     // Populate m_transfers
@@ -10290,7 +10303,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   {
     // this is used to build a tx that's 1 or 2 inputs, and 2 outputs, which
     // will get us a known fee.
-    uint64_t estimated_fee = estimate_fee(use_per_byte_fee, use_rct, 2, fake_outs_count, 2, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
+    uint64_t estimated_fee = estimate_fee(use_per_byte_fee, use_rct, 2 + extra_inputs_reserved_fee, fake_outs_count, 2, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
     preferred_inputs = pick_preferred_rct_inputs(needed_money + estimated_fee, subaddr_account, subaddr_indices);
     if (!preferred_inputs.empty())
     {
@@ -10482,7 +10495,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       pending_tx test_ptx;
 
       const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers, tx.selected_transfers);
-      needed_fee = estimate_fee(use_per_byte_fee, use_rct ,tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
+      needed_fee = estimate_fee(use_per_byte_fee, use_rct , tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
 
       auto try_carving_from_partial_payment = [&](uint64_t needed_fee, uint64_t available_for_fee)
       {

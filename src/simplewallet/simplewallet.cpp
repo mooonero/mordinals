@@ -6626,6 +6626,11 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
   if (do_mint_ordinal)
   {
     cryptonote::add_type_to_extra(extra, ordinal);
+  }else if(adv_options.do_transfer_ordinal)
+  {
+    tx_extra_ordinal_update ordinal_update;
+    ordinal_update.meta_data = adv_options.new_meta_info;
+    cryptonote::add_type_to_extra(extra, ordinal_update);
   }
 
 
@@ -7132,6 +7137,19 @@ bool simple_wallet::mint_ordinal(const std::vector<std::string>& args_)
     return true;
   }
 
+  {
+    COMMAND_GET_ORDINAL_DETAILS::request req;
+    COMMAND_GET_ORDINAL_DETAILS::response res;
+    req.ordinal_hash = epee::string_tools::pod_to_hex(crypto::cn_fast_hash(adv_opt.ord_reg.img_data.data(), adv_opt.ord_reg.img_data.size()));
+    bool r = m_wallet->invoke_http_json_rpc("/json_rpc", "get_ordinal_details", req, res);
+    if(res.status != CORE_RPC_STATUS_NOT_FOUND)
+    {
+      fail_msg_writer() << "Error: inscription with hash " << crypto::cn_fast_hash(adv_opt.ord_reg.img_data.data(), adv_opt.ord_reg.img_data.size()) << " already registered, file " << args_[1];
+      return true;
+    }
+  }
+
+
   std::vector<std::string> main_args;
   if (args_.size() == 4)
   {
@@ -7148,13 +7166,14 @@ bool simple_wallet::mint_ordinal(const std::vector<std::string>& args_)
 bool simple_wallet::list_my_ordinals(const std::vector<std::string> &args_)
 {
   std::map<uint64_t, tools::wallet2::wallet_ordinal> ords = m_wallet->get_my_ordinals();
+  const tools::wallet2::transfer_container& wallet_transfers = m_wallet->get_transfers();
   for(auto it = ords.begin(); it != ords.end(); it++)
   {
     COMMAND_GET_ORDINAL_DETAILS::request req;
     COMMAND_GET_ORDINAL_DETAILS::response res;
     req.ordinal_hash = epee::string_tools::pod_to_hex(it->second.ordinal_hash);
     bool r = m_wallet->invoke_http_json_rpc("/json_rpc", "get_ordinal_details", req, res);
-    if(!r)
+    if(!r || res.status != CORE_RPC_STATUS_OK)
     {
       message_writer( console_color_cyan, false) <<
           boost::format("            %s") %
@@ -7162,11 +7181,25 @@ bool simple_wallet::list_my_ordinals(const std::vector<std::string> &args_)
     }
     else
     {
-      message_writer( console_color_cyan, false) <<
-          boost::format("%10u  %s   %s") %
+      uint64_t confirmations = m_wallet->get_blockchain_current_height() - wallet_transfers[it->first].m_block_height;
+      std::string status;
+      epee::console_colors color = console_color_cyan;
+      if(confirmations < CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE)
+      {
+        color = console_color_magenta;
+        status = "unconfirmed("; 
+        status += std::to_string(confirmations) + " of " + std::to_string(CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE) + ")";
+      }else
+      {
+        status = "mature";
+      }
+
+      message_writer( color, false) <<
+          boost::format("%10u  %s   %s  %s") %
           res.ordinal_id %
           epee::string_tools::pod_to_hex(it->second.ordinal_hash) % 
-          res.history.back().tx_id
+          res.history.back().tx_id %
+          status
           ;
     }
 

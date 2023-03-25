@@ -104,6 +104,7 @@ struct ordinal_info
 
 };
 
+class ordinals_container;
 
 BOOST_CLASS_VERSION(ordinal_history_entry, 1)
 BOOST_CLASS_VERSION(ordinal_info, 1)
@@ -119,6 +120,7 @@ class ordinals_container
   std::map<uint64_t, uint64_t> m_global_index_out_to_ordinal; // global output indoex -> index in m_ordinals vector
 
   std::string m_config_path;
+  uint64_t duplicates = 0;
 
 public: 
   bool on_push_transaction(const cryptonote::transaction& tx, uint64_t block_height, const std::vector<uint64_t>& outs_indexes);
