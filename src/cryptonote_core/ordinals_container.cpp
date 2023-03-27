@@ -345,10 +345,20 @@ bool ordinals_container::init(const std::string& config_folder)
     MGINFO_BLUE("Ordinals config not found, starting as empty, need resync");
     return true;
   }
-  boost::archive::binary_iarchive boost_archive(ordinals_data);
 
-  boost_archive >> *this;
-  bool success = !ordinals_data.fail();
+  boost::archive::binary_iarchive boost_archive(ordinals_data);
+  bool success = false;
+  try
+  {
+    boost_archive >> *this;
+    success = !ordinals_data.fail();
+  }
+  catch(const std::exception& e)
+  {
+    MGINFO_RED("Exception on loading mordinals config: " << e.what());
+  }
+  
+
   if (success)
   {
     MGINFO_GREEN("Ordinals config loaded");

@@ -104,8 +104,8 @@ Blockchain::Blockchain(tx_memory_pool& tx_pool) :
 //------------------------------------------------------------------
 Blockchain::~Blockchain()
 {
-  try { deinit(); }
-  catch (const std::exception &e) { /* ignore */ }
+  //try { deinit(); }
+  //catch (const std::exception &e) { /* ignore */ }
 }
 //------------------------------------------------------------------
 bool Blockchain::have_tx(const crypto::hash &id) const
