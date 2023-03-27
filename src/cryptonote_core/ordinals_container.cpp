@@ -333,6 +333,16 @@ uint64_t ordinals_container::get_block_height()
   return m_last_block_height;
 }
 
+void ordinals_container::clear()
+{
+  m_data_hash_to_ordinal.clear();
+  m_ordinals.clear();
+  m_was_fatal_error = false;
+  m_last_block_height = 0;
+  m_global_index_out_to_ordinal.clear();
+  duplicates = 0;
+}
+
 bool ordinals_container::init(const std::string& config_folder)
 {
   m_config_path = config_folder;
@@ -356,6 +366,7 @@ bool ordinals_container::init(const std::string& config_folder)
   catch(const std::exception& e)
   {
     MGINFO_RED("Exception on loading mordinals config: " << e.what());
+    clear();
   }
   
 

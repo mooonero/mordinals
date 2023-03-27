@@ -151,6 +151,7 @@ public:
   }
 
 private:
+  void clear();
   bool process_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
   bool process_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
 
