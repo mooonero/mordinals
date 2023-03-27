@@ -5790,9 +5790,9 @@ void simple_wallet::on_skip_transaction(uint64_t height, const crypto::hash &txi
   if (m_locked)
     return;
 }
-void simple_wallet::on_general_message(const std::string& message)
+void simple_wallet::on_general_message(const std::string& message, epee::console_colors color)
 {
-  message_writer(console_color_magenta, true) << message;
+  message_writer(color, true) << message;
 }
 //----------------------------------------------------------------------------------------------------
 boost::optional<epee::wipeable_string> simple_wallet::on_get_password(const char *reason)
@@ -7141,7 +7141,7 @@ bool simple_wallet::mint_ordinal(const std::vector<std::string>& args_)
     COMMAND_GET_ORDINAL_DETAILS::request req;
     COMMAND_GET_ORDINAL_DETAILS::response res;
     req.ordinal_hash = epee::string_tools::pod_to_hex(crypto::cn_fast_hash(adv_opt.ord_reg.img_data.data(), adv_opt.ord_reg.img_data.size()));
-    bool r = m_wallet->invoke_http_json_rpc("/json_rpc", "get_ordinal_details", req, res);
+    m_wallet->invoke_http_json_rpc("/json_rpc", "get_ordinal_details", req, res);
     if(res.status != CORE_RPC_STATUS_NOT_FOUND)
     {
       fail_msg_writer() << "Error: inscription with hash " << crypto::cn_fast_hash(adv_opt.ord_reg.img_data.data(), adv_opt.ord_reg.img_data.size()) << " already registered, file " << args_[1];
@@ -7191,7 +7191,14 @@ bool simple_wallet::list_my_ordinals(const std::vector<std::string> &args_)
         status += std::to_string(confirmations) + " of " + std::to_string(CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE) + ")";
       }else
       {
-        status = "mature";
+        if(it->second.state_mask & INSCRIPTION_STATE_SEND_PENDING)
+        {
+          color = console_color_magenta;
+          status = "sending";
+        }else
+        {
+          status = "mature";
+        }
       }
 
       message_writer( color, false) <<

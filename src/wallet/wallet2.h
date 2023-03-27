@@ -154,7 +154,7 @@ private:
     virtual boost::optional<epee::wipeable_string> on_device_pin_request() { return boost::none; }
     virtual boost::optional<epee::wipeable_string> on_device_passphrase_request(bool & on_device) { on_device = true; return boost::none; }
     virtual void on_device_progress(const hw::device_progress& event) {};
-    virtual void on_general_message(const std::string& message) {};
+    virtual void on_general_message(const std::string& message, epee::console_colors color) {};
     // Common callbacks
     virtual void on_pool_tx_removed(const crypto::hash &txid) {}
     virtual ~i_wallet2_callback() {}
@@ -794,15 +794,33 @@ private:
       END_SERIALIZE()
     };
 
+#define INSCRIPTION_STATE_SEND_PENDING              0x0000000000000001ULL
     struct wallet_ordinal
     {
       crypto::hash ordinal_hash; //hash of img data
+      uint64_t ordinal_id = 0;
+      uint64_t state_mask = 0;
       
       BEGIN_SERIALIZE_OBJECT()
         VERSION_FIELD(0)
         FIELD(ordinal_hash)
+        FIELD(ordinal_id)
+        FIELD(state_mask)
       END_SERIALIZE()
     };
+    
+    struct process_transaction_ordinal_context
+    {
+      cryptonote::tx_extra_ordinal_register ord_reg_data;
+      cryptonote::tx_extra_ordinal_update ord_upd_data;
+      bool has_ordinal_register_entry = false;
+      bool has_ordinal_update_entry = false;  
+      bool legit = false;
+      bool spent_ordinal = false;
+      uint64_t ordinal_id_received = 0;
+      uint64_t ordinal_id_spent = 0;
+    };
+
 
 
 
@@ -1263,8 +1281,8 @@ private:
 
     BEGIN_SERIALIZE_OBJECT()
       MAGIC_FIELD("monero wallet cache")
-      VERSION_FIELD(2)
-      if (version < 1)
+      VERSION_FIELD(3)
+      if (version < 2)
       {
         //
         return false;
@@ -1764,7 +1782,7 @@ private:
     uint64_t get_dynamic_base_fee_estimate();
     float get_output_relatedness(const transfer_details &td0, const transfer_details &td1) const;
     std::vector<size_t> pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices);
-    void set_spent(size_t idx, uint64_t height);
+    void set_spent(size_t idx, uint64_t height, process_transaction_ordinal_context* ptr_ord_context = nullptr  );
     void set_unspent(size_t idx);
     bool is_spent(const transfer_details &td, bool strict = true) const;
     bool is_spent(size_t idx, bool strict = true) const;

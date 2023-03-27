@@ -108,7 +108,7 @@ class ordinals_container;
 
 BOOST_CLASS_VERSION(ordinal_history_entry, 1)
 BOOST_CLASS_VERSION(ordinal_info, 1)
-BOOST_CLASS_VERSION(ordinals_container, 2)
+BOOST_CLASS_VERSION(ordinals_container, 3)
 
 class ordinals_container
 {
@@ -132,14 +132,15 @@ public:
   uint64_t get_ordinals_count();
   bool get_ordinal_by_index(uint64_t index, ordinal_info& oi);
   bool get_ordinal_by_hash(const crypto::hash& h, ordinal_info& oi);
+  bool get_ordinal_by_global_out_index(uint64_t index, ordinal_info& oi);
   bool get_ordinals(uint64_t start_offset, uint64_t count, std::vector<ordinal_info>& ords);
   bool need_resync();
-
+  void clear();
 
   template <class Archive>
   inline void serialize(Archive& a, const unsigned int ver)
   {
-    if (ver < 2)
+    if (ver < 3)
     {
       m_need_resync = true;
     }
@@ -151,7 +152,6 @@ public:
   }
 
 private:
-  void clear();
   bool process_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
   bool process_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
 

@@ -471,10 +471,11 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
   if (m_ordinals.get_block_height() == 0 || m_ordinals.need_resync())
   {
     // need to resync 
+    m_ordinals.clear();
     uint64_t h = m_db->height();
     if (h > ORDINAL_HEIGHT_START)
     {
-      MINFO("Ordinals: rescanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
+      MCINFO("global", "Ordinals: rescanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
       for (uint64_t h_ord = ORDINAL_HEIGHT_START; h_ord != m_db->height(); h_ord++)
       {
         block b_ord = m_db->get_block_from_height(h_ord);
@@ -493,14 +494,14 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
         }
         m_ordinals.set_block_height(h_ord);
       }
-      MINFO("Ordinals: rescanning finished! Current height is " << m_db->height());
+      MCINFO("global", "Ordinals: rescanning finished! Current height is " << m_db->height());
     }
   }
 //#define TEST_ORDINALS_POPS
 
 #ifdef TEST_ORDINALS_POPS
   
-  MINFO("Ordinals: revers scanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
+  MCINFO("global", "Ordinals: revers scanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
   for (uint64_t h_ord = m_db->height()-1; h_ord != ORDINAL_HEIGHT_START; h_ord--)
   {
     block b_ord = m_db->get_block_from_height(h_ord);
@@ -519,7 +520,7 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
     }
     m_ordinals.set_block_height(h_ord);
   }
-  MINFO("Ordinals: rescanning finished! Current height is " << m_db->height());
+  MCINFO("global", "Ordinals: rescanning finished! Current height is " << m_db->height());
 
   return false;
 #endif 
@@ -528,7 +529,7 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
     MERROR("Ordinals initialization failed: height missmatch() " << m_db->height() << " & " << m_ordinals.get_block_height() + 1);
     return false;
   }
-  MWARNING("Ordinals initialized with " << m_ordinals.get_ordinals_count() << " items");
+  MCINFO("global", "Ordinals initialized with " << m_ordinals.get_ordinals_count() << " items");
 
   return true;
 }

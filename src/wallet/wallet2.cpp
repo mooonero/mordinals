@@ -1691,7 +1691,7 @@ bool wallet2::is_deprecated() const
   return is_old_file_format;
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::set_spent(size_t idx, uint64_t height)
+void wallet2::set_spent(size_t idx, uint64_t height, process_transaction_ordinal_context* ptr_ord_context)
 {
   CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "Invalid index");
   transfer_details &td = m_transfers[idx];
@@ -1699,16 +1699,20 @@ void wallet2::set_spent(size_t idx, uint64_t height)
   td.m_spent = true;
   td.m_spent_height = height;
   //check if ordinal got tranfered
+
   auto it_ord = m_ordinals.find(idx);
   if (it_ord != m_ordinals.end())
   {
-    std::stringstream srea;
-    srea << "Ordinal withdrawn, ordinal hash: " << it_ord->second.ordinal_hash;
-    if (m_callback)
-      m_callback->on_general_message(srea.str());
-    m_ordinals.erase(it_ord);
+    if(ptr_ord_context)
+    {
+      ptr_ord_context->spent_ordinal = true;
+      ptr_ord_context->ordinal_id_spent = it_ord->second.ordinal_id;
+      m_ordinals.erase(it_ord);
+    }else
+    {
+      it_ord->second.state_mask |= INSCRIPTION_STATE_SEND_PENDING;
+    }
   }
-
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::set_unspent(size_t idx)
@@ -2001,8 +2005,15 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   }
   const std::vector<tx_extra_field>& tx_extra_fields = tx_cache_data.tx_extra_fields.empty() ? local_tx_extra_fields : tx_cache_data.tx_extra_fields;
 
-  cryptonote::tx_extra_ordinal_register ord_reg_data;
-  bool has_ordinal_entry = find_tx_extra_field_by_type(tx_extra_fields, ord_reg_data);
+  process_transaction_ordinal_context ord_context;
+  if(find_tx_extra_field_by_type(tx_extra_fields, ord_context.ord_reg_data))
+  {
+    ord_context.has_ordinal_register_entry = true;
+  }else if(find_tx_extra_field_by_type(tx_extra_fields, ord_context.ord_upd_data))
+  {
+    ord_context.has_ordinal_update_entry = true;
+  }
+
 
   // Don't try to extract tx public key if tx has no ouputs
   size_t pk_index = 0;
@@ -2219,20 +2230,29 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
               td.m_rct = false;
             }
             td.m_frozen = false;
-            if (has_ordinal_entry && o == 0)
+            if ((ord_context.has_ordinal_register_entry || ord_context.has_ordinal_update_entry) && o == 0)
             {
-              // received ordinal!
-              if(m_callback)
+
+              crypto::hash ordinal_hash = crypto::cn_fast_hash(ord_context.ord_reg_data.img_data.data(), ord_context.ord_reg_data.img_data.size());
+              COMMAND_GET_ORDINAL_DETAILS::request req;
+              COMMAND_GET_ORDINAL_DETAILS::response res;
+              req.global_output_index = o_indices[0];
+              this->invoke_http_json_rpc("/json_rpc", "get_ordinal_details", req, res);
+              if(res.status == "OK" && res.ordinal_hash.size() != 0 && (ord_context.has_ordinal_update_entry || res.ordinal_hash == epee::string_tools::pod_to_hex(ordinal_hash)))
               {
-                m_callback->on_general_message("Ordinal received!");
+                // Inscription legit
+
+                // Mark as spent to prevent it from being accidently used in regular transaction
+                td.m_spent = true;
+                td.m_is_ordinal = true;                
+                wallet_ordinal& wo = m_ordinals[m_transfers.size() - 1];
+                bool r = epee::string_tools::hex_to_pod(res.ordinal_hash, wo.ordinal_hash);
+                THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "wrong hash in get_ordinal_details response");
+                wo.ordinal_id = res.ordinal_id;
+                
+                ord_context.ordinal_id_received = res.ordinal_id;
+                ord_context.legit = true;
               }
-              // TODO: add validation with the daemon if ordinal legit
-              // mark as spent to prevent it from being accidently used in regular transaction
-              td.m_spent = true;
-              td.m_is_ordinal = true;
-              wallet_ordinal& wo = m_ordinals[m_transfers.size() - 1];
-              wo.ordinal_hash = crypto::cn_fast_hash(ord_reg_data.img_data.data(), ord_reg_data.img_data.size());
-              MWARNING("Ordinal received! hash: " <<  wo.ordinal_hash);
             }
             else
             {
@@ -2382,7 +2402,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       if (!pool)
       {
         LOG_PRINT_L0("Spent money: " << print_money(amount) << ", with tx: " << txid);
-        set_spent(it->second, height);
+        set_spent(it->second, height, &ord_context);
         if (0 != m_callback)
           m_callback->on_money_spent(height, txid, tx, amount, tx, td.m_subaddr_index);
       }
@@ -2549,6 +2569,39 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     std::shared_ptr<tools::Notify> tx_notify = m_tx_notify;
     if (tx_notify)
       tx_notify->notify("%s", epee::string_tools::pod_to_hex(txid).c_str(), NULL);
+  }
+
+  // Display inscription info
+  if(ord_context.spent_ordinal || ord_context.legit)
+  {
+    std::stringstream stream_res;
+    epee::console_colors color = console_color_magenta;
+    if(ord_context.legit)
+    {
+      color = console_color_green;
+      if(ord_context.spent_ordinal && ord_context.has_ordinal_update_entry)
+      {
+        THROW_WALLET_EXCEPTION_IF(ord_context.ordinal_id_received != ord_context.ordinal_id_spent, error::wallet_internal_error, "Inscription update: ordinal_id_received don't match with ordinal_id_spent");
+        stream_res << "Inscription updated, id: " << ord_context.ordinal_id_received;
+      }else
+      {
+        if(ord_context.has_ordinal_register_entry)
+        {
+          stream_res << "Inscription registered, id: " << ord_context.ordinal_id_received;
+        }else
+        {
+          stream_res << "Inscription received, id: " << ord_context.ordinal_id_received;
+        }      
+      }
+    }else if(ord_context.spent_ordinal)
+    {
+      stream_res << "Inscription withdrawn, id: " << ord_context.ordinal_id_spent;
+    }
+    
+    if (m_callback)
+          m_callback->on_general_message(stream_res.str(), color);
+    
+    MWARNING(stream_res.str());
   }
 }
 //----------------------------------------------------------------------------------------------------
@@ -3876,6 +3929,8 @@ bool wallet2::clear()
   m_subaddress_labels.clear();
   m_multisig_rounds_passed = 0;
   m_device_last_key_image_sync = 0;
+
+  m_ordinals.clear();
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -10347,7 +10402,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     // locate ordinal first
     auto it = std::find_if(m_ordinals.begin(), m_ordinals.end(),
       [&](const auto& pair) { return pair.second.ordinal_hash == dsts[0].ordinal_origin; });
-    THROW_WALLET_EXCEPTION_IF(it == m_ordinals.end(), error::wallet_internal_error, "Ordinal not found");
+    THROW_WALLET_EXCEPTION_IF(it == m_ordinals.end(), error::wallet_internal_error, "Inscription not found");
+    THROW_WALLET_EXCEPTION_IF(it->second.state_mask&INSCRIPTION_STATE_SEND_PENDING, error::wallet_internal_error, "The inscription has already been sent and is currently pending with the other transaction");
     
     uint64_t transfer_index = it->first;
     txes.back().selected_transfers.push_back(transfer_index);

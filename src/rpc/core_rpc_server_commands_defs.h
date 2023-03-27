@@ -2776,13 +2776,15 @@ namespace cryptonote
   {
     struct request_t : public rpc_request_base
     {
-      uint64_t ordinal_id;
+      uint64_t ordinal_id = 0;
       std::string ordinal_hash;
+      uint64_t global_output_index = 0;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_request_base)
         KV_SERIALIZE(ordinal_id)
         KV_SERIALIZE(ordinal_hash)
+        KV_SERIALIZE(global_output_index)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;

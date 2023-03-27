@@ -172,7 +172,6 @@ bool ordinals_container::process_ordinal_update_entry(const cryptonote::transact
     ord.history.back().meta_data = ordinal_upd.meta_data;
     ord.history.back().tx_id = cryptonote::get_transaction_hash(tx);
 
-    m_global_index_out_to_ordinal.erase(it_inscription);
     m_global_index_out_to_ordinal[outs_indexes[0]] = ord.index;
     MGINFO_BLUE("Ordinal [" << ord.index << "] updated, transaction: " << cryptonote::get_transaction_hash(tx));
     return true;
@@ -383,8 +382,7 @@ bool ordinals_container::init(const std::string& config_folder)
 }
 bool ordinals_container::deinit()
 {
-
- std::ofstream ordinals_data;
+  std::ofstream ordinals_data;
   ordinals_data.open(m_config_path + "/" + ORDINALS_CONFIG_FILENAME, std::ios_base::out | std::ios_base::binary | std::ios::trunc);
   if (ordinals_data.fail())
     return false;
@@ -419,6 +417,16 @@ bool ordinals_container::get_ordinal_by_hash(const crypto::hash& h, ordinal_info
 {
   auto it_or = m_data_hash_to_ordinal.find(h);
   if (it_or == m_data_hash_to_ordinal.end())
+  {
+    return false;
+  }
+  oi = m_ordinals[it_or->second];
+  return true;
+}
+bool ordinals_container::get_ordinal_by_global_out_index(uint64_t index, ordinal_info& oi)
+{
+  auto it_or = m_global_index_out_to_ordinal.find(index);
+  if(it_or == m_global_index_out_to_ordinal.end())
   {
     return false;
   }
