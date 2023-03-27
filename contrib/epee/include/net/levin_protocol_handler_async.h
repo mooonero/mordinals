@@ -546,10 +546,12 @@ public:
                 m_current_head.m_command, buff_to_invoke, return_message.buffer, m_connection_context
               );
 
+PUSH_WARNINGS
+DISABLE_GCC_AND_CLANG_WARNING(sign-compare)
               // peer_id remains unset if dropped
               if (m_current_head.m_command == m_connection_context.handshake_command() && m_connection_context.handshake_complete())
                 m_max_packet_size = m_config.m_max_packet_size;
-
+POP_WARNINGS
               if(!send_message(return_message.finalize_response(m_current_head.m_command, return_code)))
                 return false;
             }

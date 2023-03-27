@@ -3513,7 +3513,7 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
   // "I had to reorder some code to fix... a timing info leak IIRC. In turn, this undid something I had fixed before, ... a subtle race condition with the txpool.
   // It was pretty subtle IIRC, and so I needed time to think about how to refix it after the move, and I never got to it."
   // https://github.com/monero-project/monero/pull/6097
-  bool refreshed = false;
+  //bool refreshed = false;
   std::shared_ptr<std::map<std::pair<uint64_t, uint64_t>, size_t>> output_tracker_cache;
   hw::device &hwdev = m_account.get_device();
 
@@ -3571,7 +3571,7 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
       if (!first && blocks.empty())
       {
         m_node_rpc_proxy.set_height(m_blockchain.size());
-        refreshed = true;
+        //refreshed = true;
         break;
       }
       if (!last)
@@ -3629,7 +3629,7 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
       if(!first && blocks_start_height == next_blocks_start_height)
       {
         m_node_rpc_proxy.set_height(m_blockchain.size());
-        refreshed = true;
+        //refreshed = true;
         break;
       }
 
@@ -10078,12 +10078,12 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   hw::reset_mode rst(hwdev);  
 
   auto original_dsts = dsts;
-  bool is_ordinal_transfer = false;
+  //bool is_ordinal_transfer = false;
   size_t extra_inputs_reserved_fee = 0;
   if(dsts[0].is_ordinal && dsts[0].ordinal_origin != crypto::null_hash)
   {
-    is_ordinal_transfer = true;
-    //extra_inputs_reserved_fee = 1;
+    //is_ordinal_transfer = true;
+    extra_inputs_reserved_fee = 1;
   }
 
 
