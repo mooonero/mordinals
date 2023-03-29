@@ -633,6 +633,8 @@ namespace cryptonote
     if (!pick<tx_extra_padding>(nar, tx_extra_fields, TX_EXTRA_TAG_PADDING)) return false;
     if (!pick<tx_extra_ordinal_register>(nar, tx_extra_fields, TX_EXTRA_TAG_ORDINALS_REGISTER)) return false;
     if (!pick<tx_extra_ordinal_update>(nar, tx_extra_fields, TX_EXTRA_TAG_ORDINALS_UPDATE)) return false;
+    if (!pick<tx_extra_ordinal_register_multibody>(nar, tx_extra_fields, TX_EXTRA_TAG_ORDINALS_REGISTER_MULTIBODY)) return false;
+    if (!pick<tx_extra_ordinal_multibody_part>(nar, tx_extra_fields, TX_EXTRA_TAG_ORDINALS_MULTIBODY_PART)) return false;
 
     // if not empty, someone added a new type and did not add a case above
     if (!tx_extra_fields.empty())

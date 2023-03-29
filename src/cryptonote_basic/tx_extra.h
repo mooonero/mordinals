@@ -40,8 +40,10 @@
 #define TX_EXTRA_MERGE_MINING_TAG           0x03
 #define TX_EXTRA_TAG_ADDITIONAL_PUBKEYS     0x04
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
-#define TX_EXTRA_TAG_ORDINALS_REGISTER      0x10
-#define TX_EXTRA_TAG_ORDINALS_UPDATE        0x11
+#define TX_EXTRA_TAG_ORDINALS_REGISTER                  0x10
+#define TX_EXTRA_TAG_ORDINALS_UPDATE                    0x11
+#define TX_EXTRA_TAG_ORDINALS_REGISTER_MULTIBODY        0x12
+#define TX_EXTRA_TAG_ORDINALS_MULTIBODY_PART            0x13
 
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
@@ -197,12 +199,40 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
+  struct tx_extra_ordinal_register_multibody
+  {
+    std::string img_data_0;
+    crypto::hash next_hash;
+    uint64_t sz = 0;
+    uint64_t count = 0;
+
+    BEGIN_SERIALIZE()
+      FIELD(img_data_0)
+      FIELD(next_hash)
+      FIELD(sz)
+      FIELD(count)
+    END_SERIALIZE()
+  };
+
+  struct tx_extra_ordinal_multibody_part
+  {
+    crypto::hash origin_id;
+    std::string img_data_n;
+    crypto::hash next_hash;
+
+    BEGIN_SERIALIZE()
+      FIELD(origin_id)
+      FIELD(img_data_n)
+      FIELD(next_hash)
+    END_SERIALIZE()
+  };
+
 
   // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
   //   varint tag;
   //   varint size;
   //   varint data[];
-  typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag, tx_extra_additional_pub_keys, tx_extra_mysterious_minergate, tx_extra_ordinal_register, tx_extra_ordinal_update> tx_extra_field;
+  typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag, tx_extra_additional_pub_keys, tx_extra_mysterious_minergate, tx_extra_ordinal_register, tx_extra_ordinal_update, tx_extra_ordinal_register_multibody, tx_extra_ordinal_multibody_part> tx_extra_field;
 }
 
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding, TX_EXTRA_TAG_PADDING);
@@ -213,3 +243,5 @@ VARIANT_TAG(binary_archive, cryptonote::tx_extra_additional_pub_keys, TX_EXTRA_T
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_ordinal_register, TX_EXTRA_TAG_ORDINALS_REGISTER);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_ordinal_update, TX_EXTRA_TAG_ORDINALS_UPDATE);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_ordinal_register_multibody, TX_EXTRA_TAG_ORDINALS_REGISTER_MULTIBODY);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_ordinal_multibody_part, TX_EXTRA_TAG_ORDINALS_MULTIBODY_PART);
