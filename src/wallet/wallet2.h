@@ -1281,11 +1281,11 @@ private:
 
     BEGIN_SERIALIZE_OBJECT()
       MAGIC_FIELD("monero wallet cache")
-      VERSION_FIELD(3)
-      if (version < 2)
+      VERSION_FIELD(4)
+      if (version < 4)
       {
-        //
-        return false;
+        m_reset_cache = true;
+        return true;
       }
       FIELD(m_blockchain)
       FIELD(m_transfers)
@@ -1979,6 +1979,8 @@ private:
     bool m_load_deprecated_formats;
 
     bool m_has_ever_refreshed_from_node;
+
+    bool m_reset_cache = false;
 
     static boost::mutex default_daemon_address_lock;
     static std::string default_daemon_address;

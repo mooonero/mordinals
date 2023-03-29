@@ -695,6 +695,22 @@ namespace cryptonote
     rx_slow_hash(seed_hash.data, bd.data(), bd.size(), res.data);
   }
 
+  uint64_t calculate_fee_from_weight(uint64_t base_fee, uint64_t weight, uint64_t fee_quantization_mask)
+  {
+    uint64_t fee = weight * base_fee;
+    fee = (fee + fee_quantization_mask - 1) / fee_quantization_mask * fee_quantization_mask;
+    return fee;
+  }
+
+  uint64_t get_inscription_registration_cost(uint64_t size)
+  {
+    const uint64_t inscription_fee_quantization_mask = 1000000000; // 0.012, 0.013 etc
+    const uint64_t inscription_base_fee = 400000; // max priority multiplier
+    const uint64_t floor_cost = 10000000000; // 0.01 XMR
+
+    return calculate_fee_from_weight(inscription_base_fee, size, inscription_fee_quantization_mask) + floor_cost - inscription_fee_quantization_mask;
+  }
+
   bool get_block_longhash(const Blockchain *pbc, const blobdata& bd, crypto::hash& res, const uint64_t height, const int major_version, const crypto::hash *seed_hash, const int miners)
   {
     // block 202612 bug workaround
