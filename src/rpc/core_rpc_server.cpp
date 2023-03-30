@@ -3615,7 +3615,7 @@ namespace cryptonote
     return true;
   }
 
-  bool ordinal_info_to_rpc(const ordinal_info& ord_info, ordinal_rpc_info& ordin_rpc_info)
+  bool ordinal_info_to_rpc(const inscription_info& ord_info, ordinal_rpc_info& ordin_rpc_info)
   {
     ordin_rpc_info.current_meta_data = ord_info.current_metadata;
     ordin_rpc_info.img_data_hex = epee::string_tools::buff_to_hex_nodelimer(ord_info.img_data);
@@ -3643,7 +3643,7 @@ namespace cryptonote
         error_resp.message = "Invalid hash format";
         return false;
       }
-      ordinal_info ord_info;
+      inscription_info ord_info;
       if (!ordin.get_ordinal_by_hash(ord_hash, ord_info))
       {
         res.status = CORE_RPC_STATUS_NOT_FOUND;
@@ -3656,7 +3656,7 @@ namespace cryptonote
     else if(req.global_output_index != 0)
     {
       // Requested ordinal by global output index
-      ordinal_info ord_info;
+      inscription_info ord_info;
       if (!ordin.get_ordinal_by_global_out_index(req.global_output_index, ord_info))
       {
         res.status = CORE_RPC_STATUS_NOT_FOUND;
@@ -3669,7 +3669,7 @@ namespace cryptonote
     else
     {
       // Requested ordinal by index(id)
-      ordinal_info ord_info;
+      inscription_info ord_info;
       if (!ordin.get_ordinal_by_index(req.ordinal_id, ord_info))
       {
         res.status = CORE_RPC_STATUS_NOT_FOUND;
@@ -3688,7 +3688,7 @@ namespace cryptonote
   }
   bool core_rpc_server::on_get_ordinals(const COMMAND_GET_ORDINALS::request& req, COMMAND_GET_ORDINALS::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
   {
-    std::vector<ordinal_info> ords;
+    std::vector<inscription_info> ords;
     m_core.get_blockchain_storage().get_ordinals_container().get_ordinals(req.start_from, req.count, ords);
     res.ordinals.resize(ords.size());
     for (size_t i = 0; i != ords.size(); i++)

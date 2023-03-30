@@ -705,7 +705,7 @@ namespace cryptonote
   uint64_t get_inscription_registration_cost(uint64_t size)
   {
     const uint64_t inscription_fee_quantization_mask = 1000000000; // 0.012, 0.013 etc
-    const uint64_t inscription_base_fee = 400000; // max priority multiplier
+    const uint64_t inscription_base_fee = 4000000; // max priority multiplier
     const uint64_t floor_cost = 10000000000; // 0.01 XMR
 
     return calculate_fee_from_weight(inscription_base_fee, size, inscription_fee_quantization_mask) + floor_cost - inscription_fee_quantization_mask;

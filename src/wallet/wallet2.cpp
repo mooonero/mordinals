@@ -5752,7 +5752,11 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
               loaded = true;
           
           if(m_reset_cache) 
+          {
             loaded = true;
+            m_account_public_address = m_account.get_keys().m_account_address;
+            cache_missing = true;
+          }
           if (!loaded)
           {
             binary_archive<false> ar{epee::strspan<std::uint8_t>(cache_data)};

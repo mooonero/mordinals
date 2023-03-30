@@ -75,9 +75,21 @@ bool ordinals_container::on_push_transaction(const cryptonote::transaction& tx, 
 
   return true;
 }
-
+bool ordinals_container::is_transaction_fit_registration_fee(uint64_t inscription_size, uint64_t block, uint64_t fee)
+{
+  if(block < MORDINAL_SIZE_TO_FEE_MODERATION_HEIGHT_START)
+  {
+    return true;
+  }
+  return fee >= cryptonote::get_inscription_registration_cost(inscription_size);
+}
 bool ordinals_container::process_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes)
 {
+  if(!is_transaction_fit_registration_fee(ordinal_reg.img_data.size(), block_height, cryptonote::get_tx_fee(tx)))
+  {
+    MGINFO_MAGENTA("Inscription registration ignored(size to fee moderation), transaction(fee: "<< cryptonote::print_money(cryptonote::get_tx_fee(tx)) << ") " << cryptonote::get_transaction_hash(tx));
+    return true;
+  }
   //found ordinal registration entry
   crypto::hash ordinal_data_hash = crypto::cn_fast_hash(ordinal_reg.img_data.data(), ordinal_reg.img_data.size());
   auto map_it = m_data_hash_to_ordinal.find(ordinal_data_hash);
@@ -95,15 +107,15 @@ bool ordinals_container::process_ordinal_registration_entry(const cryptonote::tr
     return true;
   }
 
-  m_ordinals.push_back(ordinal_info());
-  ordinal_info& entry = m_ordinals.back();
+  m_ordinals.push_back(inscription_info());
+  inscription_info& entry = m_ordinals.back();
   entry.index = m_ordinals.size() - 1;
   entry.img_data_hash = ordinal_data_hash;
   entry.img_data = ordinal_reg.img_data;
   entry.current_metadata = ordinal_reg.meta_data;
   entry.block_height = block_height;
   entry.global_out_index = outs_indexes[0];
-  entry.history.push_back(ordinal_history_entry());
+  entry.history.push_back(inscription_history_entry());
   entry.history.back().meta_data = ordinal_reg.meta_data;
   entry.history.back().tx_id = cryptonote::get_transaction_hash(tx);
   entry.history.back().global_index = outs_indexes[0];
@@ -164,13 +176,14 @@ bool ordinals_container::process_ordinal_update_entry(const cryptonote::transact
       return true;
     }
 
-    ordinal_info& ord = m_ordinals[it_inscription->second];
+    inscription_info& ord = m_ordinals[it_inscription->second];
     ord.current_metadata = ordinal_upd.meta_data;
     ord.global_out_index = inscription_offset;
     ord.history.resize(ord.history.size() + 1);
     ord.history.back().global_index = inscription_offset;
     ord.history.back().meta_data = ordinal_upd.meta_data;
     ord.history.back().tx_id = cryptonote::get_transaction_hash(tx);
+    m_events.push_back(update_event{ord.index});
 
     m_global_index_out_to_ordinal[outs_indexes[0]] = ord.index;
     MGINFO_BLUE("Ordinal [" << ord.index << "] updated, transaction: " << cryptonote::get_transaction_hash(tx));
@@ -212,6 +225,10 @@ bool ordinals_container::on_pop_transaction(const cryptonote::transaction& tx, u
 
 bool ordinals_container::unprocess_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes)
 {
+  if(!is_transaction_fit_registration_fee(ordinal_reg.img_data.size(), block_height, cryptonote::get_tx_fee(tx)))
+  {
+    return true;
+  }
   //found ordinal registration entry
   crypto::hash ordinal_data_hash = crypto::cn_fast_hash(ordinal_reg.img_data.data(), ordinal_reg.img_data.size());
   auto map_it = m_data_hash_to_ordinal.find(ordinal_data_hash);
@@ -273,7 +290,7 @@ bool ordinals_container::unprocess_ordinal_update_entry(const cryptonote::transa
     return true;
   }
 
-  ordinal_info& ord = m_ordinals[it->second];
+  inscription_info& ord = m_ordinals[it->second];
   if (ord.history.back().tx_id != cryptonote::get_transaction_hash(tx))
   {
     MGINFO_RED("Fatal error in ordinals container logic: pop transaction " << cryptonote::get_transaction_hash(tx) << " with tx_id mismatch in last history entry");
@@ -315,6 +332,7 @@ bool ordinals_container::unprocess_ordinal_update_entry(const cryptonote::transa
   }
   m_global_index_out_to_ordinal[ord.global_out_index] = ord.index;
   m_global_index_out_to_ordinal.erase(it);
+  m_events.pop_back();
   MGINFO_BLUE("Ordinal [" << ord.index << "] update popped with transaction " << cryptonote::get_transaction_hash(tx));
   return true;
 }
@@ -406,14 +424,14 @@ uint64_t ordinals_container::get_ordinals_count()
   return m_ordinals.size();
 }
 
-bool ordinals_container::get_ordinal_by_index(uint64_t index, ordinal_info& oi)
+bool ordinals_container::get_ordinal_by_index(uint64_t index, inscription_info& oi)
 {
   if (m_ordinals.size() <= index)
     return false;
   oi = m_ordinals[index];
   return true;
 }
-bool ordinals_container::get_ordinal_by_hash(const crypto::hash& h, ordinal_info& oi)
+bool ordinals_container::get_ordinal_by_hash(const crypto::hash& h, inscription_info& oi)
 {
   auto it_or = m_data_hash_to_ordinal.find(h);
   if (it_or == m_data_hash_to_ordinal.end())
@@ -423,7 +441,7 @@ bool ordinals_container::get_ordinal_by_hash(const crypto::hash& h, ordinal_info
   oi = m_ordinals[it_or->second];
   return true;
 }
-bool ordinals_container::get_ordinal_by_global_out_index(uint64_t index, ordinal_info& oi)
+bool ordinals_container::get_ordinal_by_global_out_index(uint64_t index, inscription_info& oi)
 {
   auto it_or = m_global_index_out_to_ordinal.find(index);
   if(it_or == m_global_index_out_to_ordinal.end())
@@ -433,11 +451,24 @@ bool ordinals_container::get_ordinal_by_global_out_index(uint64_t index, ordinal
   oi = m_ordinals[it_or->second];
   return true;
 }
-bool ordinals_container::get_ordinals(uint64_t start_offset, uint64_t count, std::vector<ordinal_info>& ords)
+bool ordinals_container::get_ordinals(uint64_t start_offset, uint64_t count, std::vector<inscription_info>& ords)
 {
   for (uint64_t i = start_offset; i < m_ordinals.size() && (i - start_offset) < count; i++)
   {
     ords.push_back(m_ordinals[i]);
+  }
+  return true;
+}
+
+uint64_t ordinals_container::get_events_count()
+{
+  return m_events.size();
+}
+uint64_t ordinals_container::get_events(uint64_t start_offset, uint64_t count, std::vector<inscription_event>& events)
+{
+  for (uint64_t i = start_offset; i < m_events.size() && (i - start_offset) < count; i++)
+  {
+    events.push_back(m_events[i]);
   }
   return true;
 }

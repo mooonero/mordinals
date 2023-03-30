@@ -60,9 +60,10 @@
 
 
 
-#define ORDINAL_HEIGHT_START   2838270
+#define MORDINAL_HEIGHT_START                               2838270
+#define MORDINAL_SIZE_TO_FEE_MODERATION_HEIGHT_START        2838270
 
-struct ordinal_history_entry
+struct inscription_history_entry
 {
   crypto::hash tx_id = crypto::null_hash;
   std::string meta_data;
@@ -79,7 +80,7 @@ struct ordinal_history_entry
 };
 
 
-struct ordinal_info
+struct inscription_info
 {
   uint64_t index = 0;
   crypto::hash img_data_hash = crypto::null_hash;
@@ -87,7 +88,7 @@ struct ordinal_info
   std::string current_metadata;
   uint64_t block_height = 0;
   uint64_t global_out_index = 0;
-  std::vector<ordinal_history_entry> history;
+  std::vector<inscription_history_entry> history;
 
 
   template <class Archive>
@@ -104,20 +105,45 @@ struct ordinal_info
 
 };
 
+struct update_event
+{
+  uint64_t inscription_id;
+
+  template <class Archive>
+  inline void serialize(Archive& a, const unsigned int ver)
+  {
+    a& inscription_id;
+  }
+};
+
+struct some_future_event
+{
+  uint64_t some_some;
+  template <class Archive>
+  inline void serialize(Archive& a, const unsigned int ver)
+  {
+    a& some_some;
+  }
+};
+
+typedef boost::variant<update_event, some_future_event> inscription_event;
+
+
 class ordinals_container;
 
-BOOST_CLASS_VERSION(ordinal_history_entry, 1)
-BOOST_CLASS_VERSION(ordinal_info, 1)
-BOOST_CLASS_VERSION(ordinals_container, 3)
+BOOST_CLASS_VERSION(inscription_history_entry, 1)
+BOOST_CLASS_VERSION(inscription_info, 1)
+BOOST_CLASS_VERSION(ordinals_container, 4)
 
 class ordinals_container
 {
   std::unordered_map<crypto::hash, uint64_t> m_data_hash_to_ordinal; // img_data_hash -> index in m_ordinals vector
-  std::vector<ordinal_info> m_ordinals;
+  std::vector<inscription_info> m_ordinals;
   bool m_was_fatal_error = false;
   uint64_t m_last_block_height = 0;
   bool m_need_resync = false;
   std::map<uint64_t, uint64_t> m_global_index_out_to_ordinal; // global output indoex -> index in m_ordinals vector
+  std::vector<inscription_event> m_events;
 
   std::string m_config_path;
   uint64_t duplicates = 0;
@@ -130,17 +156,19 @@ public:
   bool init(const std::string& config_folder);
   bool deinit();
   uint64_t get_ordinals_count();
-  bool get_ordinal_by_index(uint64_t index, ordinal_info& oi);
-  bool get_ordinal_by_hash(const crypto::hash& h, ordinal_info& oi);
-  bool get_ordinal_by_global_out_index(uint64_t index, ordinal_info& oi);
-  bool get_ordinals(uint64_t start_offset, uint64_t count, std::vector<ordinal_info>& ords);
+  bool get_ordinal_by_index(uint64_t index, inscription_info& oi);
+  bool get_ordinal_by_hash(const crypto::hash& h, inscription_info& oi);
+  bool get_ordinal_by_global_out_index(uint64_t index, inscription_info& oi);
+  bool get_ordinals(uint64_t start_offset, uint64_t count, std::vector<inscription_info>& ords);
+  uint64_t get_events_count();
+  uint64_t get_events(uint64_t start_offset, uint64_t count, std::vector<inscription_event>& ords);
   bool need_resync();
   void clear();
 
   template <class Archive>
   inline void serialize(Archive& a, const unsigned int ver)
   {
-    if (ver < 3)
+    if (ver < 4)
     {
       m_need_resync = true;
     }
@@ -149,9 +177,12 @@ public:
     a& m_was_fatal_error;
     a& m_last_block_height;
     a& m_global_index_out_to_ordinal;
+    a& m_events;
   }
 
 private:
+  bool is_transaction_fit_registration_fee(uint64_t inscription_size, uint64_t block, uint64_t fee);
+
   bool process_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
   bool process_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_reg, const std::vector<uint64_t>& outs_indexes);
 

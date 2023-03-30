@@ -473,10 +473,10 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
     // need to resync 
     m_ordinals.clear();
     uint64_t h = m_db->height();
-    if (h > ORDINAL_HEIGHT_START)
+    if (h > MORDINAL_HEIGHT_START)
     {
-      MCINFO("global", "Ordinals: rescanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
-      for (uint64_t h_ord = ORDINAL_HEIGHT_START; h_ord != m_db->height(); h_ord++)
+      MCINFO("global", "Ordinals: rescanning " << m_db->height() - MORDINAL_HEIGHT_START << " blocks...");
+      for (uint64_t h_ord = MORDINAL_HEIGHT_START; h_ord != m_db->height(); h_ord++)
       {
         block b_ord = m_db->get_block_from_height(h_ord);
         for (const auto& tx_id : b_ord.tx_hashes)          
@@ -704,7 +704,7 @@ block Blockchain::pop_block_from_blockchain()
   for (transaction& tx : popped_txs)
   {
     // updating ordinals
-    if (m_db->height() > ORDINAL_HEIGHT_START && !is_coinbase(tx))
+    if (m_db->height() > MORDINAL_HEIGHT_START && !is_coinbase(tx))
     {
       m_ordinals.on_pop_transaction(tx, get_block_height(popped_block), tx_outputs_offsets[count]);
     }
@@ -4622,7 +4622,7 @@ leave:
 
   TIME_MEASURE_FINISH(addblock);
   //updating ordinals
-  if (m_db->height() > ORDINAL_HEIGHT_START)
+  if (m_db->height() > MORDINAL_HEIGHT_START)
   {
     for (auto it_txs = txs.begin(); it_txs != txs.end(); it_txs++)
     {
