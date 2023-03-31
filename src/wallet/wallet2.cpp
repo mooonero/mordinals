@@ -10139,13 +10139,12 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   uint64_t additional_fee_for_inscription = 0;
   if(dsts[0].is_ordinal)
   {
+    //is_ordinal_register = true;
+    additional_fee_for_inscription = cryptonote::get_inscription_registration_cost(dsts[0].inscription_size);
+
     if(dsts[0].ordinal_origin != crypto::null_hash)
     {
       extra_inputs_reserved_fee = 1;
-    }else
-    {
-      //is_ordinal_register = true;
-      additional_fee_for_inscription = cryptonote::get_inscription_registration_cost(dsts[0].inscription_size);
     }
   }
 

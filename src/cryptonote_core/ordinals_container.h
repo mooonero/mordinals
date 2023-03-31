@@ -61,7 +61,7 @@
 
 
 #define MORDINAL_HEIGHT_START                               2838270
-#define MORDINAL_SIZE_TO_FEE_MODERATION_HEIGHT_START        2838270
+#define MORDINAL_SIZE_TO_FEE_MODERATION_HEIGHT_START        2854282
 
 struct inscription_history_entry
 {
@@ -171,6 +171,7 @@ public:
     if (ver < 4)
     {
       m_need_resync = true;
+      return;
     }
     a& m_data_hash_to_ordinal;
     a& m_ordinals;

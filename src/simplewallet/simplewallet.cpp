@@ -6771,11 +6771,13 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     if (do_mint_ordinal && dsts.size() == 0)
     {
       de.is_ordinal = true;
+      de.inscription_size = adv_options.ord_reg.img_data.size() + adv_options.ord_reg.meta_data.size();
     }
     else if (adv_options.do_transfer_ordinal  && dsts.size() == 0)
     {
       de.is_ordinal = true;
       de.ordinal_origin = adv_options.ordinal_hash;
+      de.inscription_size = adv_options.new_meta_info.size();
     }
     dsts.push_back(de);
   }

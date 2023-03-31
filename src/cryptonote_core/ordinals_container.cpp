@@ -85,7 +85,7 @@ bool ordinals_container::is_transaction_fit_registration_fee(uint64_t inscriptio
 }
 bool ordinals_container::process_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes)
 {
-  if(!is_transaction_fit_registration_fee(ordinal_reg.img_data.size(), block_height, cryptonote::get_tx_fee(tx)))
+  if(!is_transaction_fit_registration_fee(ordinal_reg.img_data.size() + ordinal_reg.meta_data.size(), block_height, cryptonote::get_tx_fee(tx)))
   {
     MGINFO_MAGENTA("Inscription registration ignored(size to fee moderation), transaction(fee: "<< cryptonote::print_money(cryptonote::get_tx_fee(tx)) << ") " << cryptonote::get_transaction_hash(tx));
     return true;
@@ -147,6 +147,12 @@ bool is_offsets_ordinalish(const std::vector<uint64_t>& offsets, uint64_t& inscr
 
 bool ordinals_container::process_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_upd, const std::vector<uint64_t>& outs_indexes)
 {
+  if(!is_transaction_fit_registration_fee(ordinal_upd.meta_data.size(), block_height, cryptonote::get_tx_fee(tx)))
+  {
+    MGINFO_MAGENTA("Inscription update ignored(size to fee moderation), transaction(fee: "<< cryptonote::print_money(cryptonote::get_tx_fee(tx)) << ") " << cryptonote::get_transaction_hash(tx));
+    return true;
+  }
+
   for (size_t i = 0; i != tx.vin.size(); i++)
   {
     const cryptonote::txin_to_key& in = boost::get<cryptonote::txin_to_key>(tx.vin[i]);
@@ -225,7 +231,7 @@ bool ordinals_container::on_pop_transaction(const cryptonote::transaction& tx, u
 
 bool ordinals_container::unprocess_ordinal_registration_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_register& ordinal_reg, const std::vector<uint64_t>& outs_indexes)
 {
-  if(!is_transaction_fit_registration_fee(ordinal_reg.img_data.size(), block_height, cryptonote::get_tx_fee(tx)))
+  if(!is_transaction_fit_registration_fee(ordinal_reg.img_data.size() + ordinal_reg.meta_data.size(), block_height, cryptonote::get_tx_fee(tx)))
   {
     return true;
   }
@@ -276,6 +282,10 @@ bool ordinals_container::unprocess_ordinal_registration_entry(const cryptonote::
 
 bool ordinals_container::unprocess_ordinal_update_entry(const cryptonote::transaction& tx, uint64_t block_height, const cryptonote::tx_extra_ordinal_update& ordinal_upd, const std::vector<uint64_t>& outs_indexes)
 {
+  if(!is_transaction_fit_registration_fee(ordinal_upd.meta_data.size(), block_height, cryptonote::get_tx_fee(tx)))
+  {
+    return true;
+  }
   auto it = m_global_index_out_to_ordinal.find(outs_indexes[0]);
   if (it == m_global_index_out_to_ordinal.end())
   {
@@ -364,7 +374,6 @@ bool ordinals_container::init(const std::string& config_folder)
 {
   m_config_path = config_folder;
 
-
   std::ifstream ordinals_data;
   ordinals_data.open(m_config_path + "/" + ORDINALS_CONFIG_FILENAME, std::ios_base::in| std::ios_base::binary);
   if (ordinals_data.fail())
@@ -396,6 +405,7 @@ bool ordinals_container::init(const std::string& config_folder)
     MGINFO_RED("Error loading ordinals config");
   }
   return success;
+
 
 }
 bool ordinals_container::deinit()
