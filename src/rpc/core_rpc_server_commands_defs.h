@@ -2871,7 +2871,7 @@ namespace cryptonote
 
     struct response_t : public rpc_response_base
     {
-      std::vector<uint64_t> events;
+      std::vector<size_t> events;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
