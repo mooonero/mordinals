@@ -2746,7 +2746,7 @@ namespace cryptonote
   {
     std::string tx_id;
     std::string meta_data;
-    std::string global_index;
+    uint64_t global_index;
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(tx_id)
