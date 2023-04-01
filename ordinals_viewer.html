@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<style>
+			section{ display: flex; flex-flow: row nowrap; gap: 1em; }
+			input{ flex-grow: 4; flex-basis: 0; }
+			label{ flex-grow: 1; flex-basis: 0; }
+			ul{ list-style: none; }
+			img{ image-rendering: pixelated; }
+			textarea{ align-self: stretch; resize: vertical;}
+			img, video, audio{ align-self: center; }
+			img, video, audio, textarea{ flex-grow: 1; flex-shrink: 1; flex-basis: 0; min-width: 0; min-height: 0; }
+		</style>
+		<title>
+			Ordinals Viewer
+		</title>
+	</head>
+	<main>
+		<h1>Ordinals Viewer</h1>
+		<section>
+			<label for="monerod_address">monerod Address</label>
+			<input id="monerod_address" type="text" placeholder="http://localhost:18081" onchange="update_by_hash();">
+		</section>
+		<section>
+			<label>Ordinals Count</label>
+			<var id="ordinals_count"></var>
+		</section>
+		<section>
+			<label for="ordinal_index">Index</label>
+			<input id="ordinal_index" type="number" min="0" onchange="update_by_index();">
+		</section>
+		<section>
+			<label for="ordinal_hash">Hash</label>
+			<input id="ordinal_hash" type="text" onchange="update_by_hash();">
+		</section>
+		<section>
+			<label>Origin TxID</label>
+			<var id="ordinal_txid"></var>
+		</section>
+		<section>
+			<h2>File</h2>
+			<ul>
+				<u>Interpret as</u>
+				<li>
+					<input id="interpret_file_image" type="radio" name="interpret_file" value="image" onchange="update_by_hash();" checked>
+					<label for="interpret_file_image">Image</label>
+				</li>
+				<li>
+					<input id="interpret_file_audio" type="radio" name="interpret_file" value="audio" onchange="update_by_hash();">
+					<label for="interpret_file_audio">Audio</label>
+				</li>
+				<li>
+					<input id="interpret_file_video" type="radio" name="interpret_file" value="video" onchange="update_by_hash();">
+					<label for="interpret_file_video">Video</label>
+				</li>
+				<li>
+					<input id="interpret_file_text" type="radio" name="interpret_file" value="text" onchange="update_by_hash();">
+					<label for="interpret_file_text">Text</label>
+				</li>
+				<li>
+					<input id="interpret_file_hex" type="radio" name="interpret_file" value="hex" onchange="update_by_hash();">
+					<label for="interpret_file_hex">Hex</label>
+				</li>
+			</ul>
+			<img id="ordinal_file_image"></img>
+			<audio id="ordinal_file_audio" controls></audio>
+			<video id="ordinal_file_video" controls></video>
+			<textarea id="ordinal_file_text" readonly></textarea>
+		</section>
+		<section>
+			<h2>Meta</h2>
+			<ul>
+				<u>Interpret as</u>
+				<li>
+					<input id="interpret_meta_text" type="radio" name="interpret_meta" value="text" onchange="update_by_hash();" checked>
+					<label for="interpret_meta_text">Text</label>
+				</li>
+				<li>
+					<input id="interpret_meta_hex" type="radio" name="interpret_meta" value="hex" onchange="update_by_hash();">
+					<label for="interpret_meta_hex">Hex</label>
+				</li>
+			</ul>
+			<textarea id="ordinal_meta_text" readonly></textarea>
+		</section>
+	</main>
+	<script>
+		function monerod_addr(){
+			var elem = document.getElementById("monerod_address");
+			var it = elem.value;
+			if(it.length == 0){
+				return elem.getAttribute("placeholder");
+			}else{
+				return it;
+			}
+		}
+		
+		function jsonRPCreq(m,d,c){
+			var req = new XMLHttpRequest();
+			req.open("POST",monerod_addr()+"/json_rpc");
+			req.setRequestHeader("Content-type","application/json");
+			req.addEventListener("loadend",c);
+			d.jsonrpc = "2.0";
+			d.id = "0";
+			d.method = m;
+			req.send(JSON.stringify(d));
+		}
+		
+		function refresh_ordinals_count(){
+			jsonRPCreq("get_ordinals_count",{},function(){
+				ordinals_count = JSON.parse(this.response).result.count;
+				document.getElementById("ordinals_count").textContent = ordinals_count;
+				document.getElementById("ordinal_index").max = ordinals_count - 1;
+			});
+		}
+		
+		function update_ord(){
+			obj = JSON.parse(this.response).result;
+			document.getElementById("ordinal_index").value = obj.ordinal_id;
+			document.getElementById("ordinal_hash").value = obj.ordinal_hash;
+			document.getElementById("ordinal_txid").textContent = obj.history[0].tx_id;
+			
+			var file_type = "";
+			for(var elem of document.getElementsByName("interpret_file")){
+				if(elem.checked){
+					file_type = elem.value;
+					break;
+				}
+			}
+			var file_data = "";
+			for(var i = 0; i < obj.img_data_hex.length; i += 2){
+				file_data += String.fromCharCode(parseInt(obj.img_data_hex.substr(i,2),16));
+			}
+			document.getElementById("ordinal_file_image").style = "display: none;";
+			document.getElementById("ordinal_file_audio").style = "display: none;";
+			document.getElementById("ordinal_file_video").style = "display: none;";
+			document.getElementById("ordinal_file_text").style = "display: none;";
+			if(file_type == "image"){
+				document.getElementById("ordinal_file_image").style = "display: initial;";
+				document.getElementById("ordinal_file_image").src = "data:;base64,"+btoa(file_data);
+			}else if(file_type == "audio"){
+				document.getElementById("ordinal_file_audio").style = "display: initial;";
+				document.getElementById("ordinal_file_audio").src = "data:;base64,"+btoa(file_data);
+			}else if(file_type == "video"){
+				document.getElementById("ordinal_file_video").style = "display: initial;";
+				document.getElementById("ordinal_file_video").src = "data:;base64,"+btoa(file_data);
+			}else if(file_type == "text"){
+				document.getElementById("ordinal_file_text").style = "display: initial;";
+				document.getElementById("ordinal_file_text").value = file_data;
+			}else if(file_type == "hex"){
+				file_data = "";
+				for(var i = 0; i < obj.img_data_hex.length; i += 2){
+					file_data += obj.img_data_hex.substr(i,2) + " ";
+				}
+				document.getElementById("ordinal_file_text").style = "display: initial;";
+				document.getElementById("ordinal_file_text").value = file_data;
+			}else{
+				return;
+			}
+			
+			var meta_type = "";
+			for(var elem of document.getElementsByName("interpret_meta")){
+				if(elem.checked){
+					meta_type = elem.value;
+					break;
+				}
+			}
+			
+			if(meta_type == "text"){
+				document.getElementById("ordinal_meta_text").value = obj.current_meta_data;
+			}else if(meta_type == "hex"){
+				var hexstr = "";
+				var hexes = "0123456789ABCDEF";
+				for(var i = 0; i < obj.current_meta_data.length; i ++){
+					hexstr += hexes[Math.floor(obj.current_meta_data.charCodeAt(i)/16)] + hexes[obj.current_meta_data.charCodeAt(i)%16] + " ";
+				}
+				document.getElementById("ordinal_meta_text").value = hexstr;
+			}else{
+				return;
+			}
+			
+			refresh_ordinals_count();
+		}
+		
+		function update_by_hash(){
+			var hash = document.getElementById("ordinal_hash").value;
+			jsonRPCreq("get_ordinal_details",{params:{ordinal_hash:hash}},update_ord);
+			
+		}
+		
+		function update_by_index(){
+			var index = document.getElementById("ordinal_index").value;
+			if(!(index > 0)){ index = 0 }
+			jsonRPCreq("get_ordinal_details",{params:{ordinal_id:index}},update_ord);
+			
+		}
+		
+		update_by_index();
+	</script>
+</html>
