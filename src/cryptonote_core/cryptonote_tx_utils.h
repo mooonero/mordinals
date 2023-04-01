@@ -83,9 +83,9 @@ namespace cryptonote
     account_public_address addr;        //destination address
     bool is_subaddress;
     bool is_integrated;
-    bool is_ordinal = false;
+    bool is_inscription = false;
     uint64_t inscription_size = 0;
-    crypto::hash ordinal_origin = crypto::null_hash; // If ordinal_origin is not null, transferring ordinal from existing
+    crypto::hash inscription_origin = crypto::null_hash; // If inscription_origin is not null, transferring inscription from existing
     tx_destination_entry() : amount(0), addr(AUTO_VAL_INIT(addr)), is_subaddress(false), is_integrated(false) { }
     tx_destination_entry(uint64_t a, const account_public_address &ad, bool is_subaddress) : amount(a), addr(ad), is_subaddress(is_subaddress), is_integrated(false) { }
     tx_destination_entry(const std::string &o, uint64_t a, const account_public_address &ad, bool is_subaddress) : original(o), amount(a), addr(ad), is_subaddress(is_subaddress), is_integrated(false) { }
@@ -156,7 +156,7 @@ namespace cryptonote
   crypto::hash get_block_longhash(const Blockchain *pb, const block& b, const uint64_t height, const crypto::hash *seed_hash = nullptr, const int miners = 0);
   void get_altblock_longhash(const block& b, crypto::hash& res, const crypto::hash& seed_hash);
 
-  uint64_t get_inscription_registration_cost(uint64_t size);
+  uint64_t get_inscription_record_cost(uint64_t size);
   uint64_t calculate_fee_from_weight(uint64_t base_fee, uint64_t weight, uint64_t fee_quantization_mask);
 
 }

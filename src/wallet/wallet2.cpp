@@ -1685,23 +1685,23 @@ bool wallet2::is_deprecated() const
   return is_old_file_format;
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::set_spent(size_t idx, uint64_t height, process_transaction_ordinal_context* ptr_ord_context)
+void wallet2::set_spent(size_t idx, uint64_t height, process_transaction_inscription_context* ptr_ord_context)
 {
   CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "Invalid index");
   transfer_details &td = m_transfers[idx];
   LOG_PRINT_L2("Setting SPENT at " << height << ": ki " << td.m_key_image << ", amount " << print_money(td.m_amount));
   td.m_spent = true;
   td.m_spent_height = height;
-  //check if ordinal got tranfered
+  //check if inscription got tranfered
 
-  auto it_ord = m_ordinals.find(idx);
-  if (it_ord != m_ordinals.end())
+  auto it_ord = m_inscriptions.find(idx);
+  if (it_ord != m_inscriptions.end())
   {
     if(ptr_ord_context)
     {
-      ptr_ord_context->spent_ordinal = true;
-      ptr_ord_context->ordinal_id_spent = it_ord->second.ordinal_id;
-      m_ordinals.erase(it_ord);
+      ptr_ord_context->spent_inscription = true;
+      ptr_ord_context->inscription_id_spent = it_ord->second.inscription_id;
+      m_inscriptions.erase(it_ord);
     }else
     {
       it_ord->second.state_mask |= INSCRIPTION_STATE_SEND_PENDING;
@@ -1999,13 +1999,13 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   }
   const std::vector<tx_extra_field>& tx_extra_fields = tx_cache_data.tx_extra_fields.empty() ? local_tx_extra_fields : tx_cache_data.tx_extra_fields;
 
-  process_transaction_ordinal_context ord_context;
+  process_transaction_inscription_context ord_context;
   if(find_tx_extra_field_by_type(tx_extra_fields, ord_context.ord_reg_data))
   {
-    ord_context.has_ordinal_register_entry = true;
+    ord_context.has_inscription_register_entry = true;
   }else if(find_tx_extra_field_by_type(tx_extra_fields, ord_context.ord_upd_data))
   {
-    ord_context.has_ordinal_update_entry = true;
+    ord_context.has_inscription_update_entry = true;
   }
 
 
@@ -2224,27 +2224,27 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
               td.m_rct = false;
             }
             td.m_frozen = false;
-            if ((ord_context.has_ordinal_register_entry || ord_context.has_ordinal_update_entry) && o == 0)
+            if ((ord_context.has_inscription_register_entry || ord_context.has_inscription_update_entry) && o == 0)
             {
 
-              crypto::hash ordinal_hash = crypto::cn_fast_hash(ord_context.ord_reg_data.img_data.data(), ord_context.ord_reg_data.img_data.size());
-              COMMAND_GET_ORDINAL_DETAILS::request req;
-              COMMAND_GET_ORDINAL_DETAILS::response res;
+              crypto::hash inscription_hash = crypto::cn_fast_hash(ord_context.ord_reg_data.img_data.data(), ord_context.ord_reg_data.img_data.size());
+              COMMAND_GET_INSCRIPTION_DETAILS::request req;
+              COMMAND_GET_INSCRIPTION_DETAILS::response res;
               req.global_output_index = o_indices[0];
-              this->invoke_http_json_rpc("/json_rpc", "get_ordinal_details", req, res);
-              if(res.status == "OK" && res.ordinal_hash.size() != 0 && (ord_context.has_ordinal_update_entry || res.ordinal_hash == epee::string_tools::pod_to_hex(ordinal_hash)))
+              this->invoke_http_json_rpc("/json_rpc", "get_inscription_details", req, res);
+              if(res.status == "OK" && res.inscription_hash.size() != 0 && (ord_context.has_inscription_update_entry || res.inscription_hash == epee::string_tools::pod_to_hex(inscription_hash)))
               {
                 // Inscription legit
 
                 // Mark as spent to prevent it from being accidently used in regular transaction
                 td.m_spent = true;
-                td.m_is_ordinal = true;                
-                wallet_ordinal& wo = m_ordinals[m_transfers.size() - 1];
-                bool r = epee::string_tools::hex_to_pod(res.ordinal_hash, wo.ordinal_hash);
-                THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "wrong hash in get_ordinal_details response");
-                wo.ordinal_id = res.ordinal_id;
+                td.m_is_inscription = true;                
+                wallet_inscription& wo = m_inscriptions[m_transfers.size() - 1];
+                bool r = epee::string_tools::hex_to_pod(res.inscription_hash, wo.inscription_hash);
+                THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "wrong hash in get_inscription_details response");
+                wo.inscription_id = res.inscription_id;
                 
-                ord_context.ordinal_id_received = res.ordinal_id;
+                ord_context.inscription_id_received = res.inscription_id;
                 ord_context.legit = true;
               }
             }
@@ -2566,30 +2566,30 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   }
 
   // Display inscription info
-  if(ord_context.spent_ordinal || ord_context.legit)
+  if(ord_context.spent_inscription || ord_context.legit)
   {
     std::stringstream stream_res;
     epee::console_colors color = console_color_magenta;
     if(ord_context.legit)
     {
       color = console_color_green;
-      if(ord_context.spent_ordinal && ord_context.has_ordinal_update_entry)
+      if(ord_context.spent_inscription && ord_context.has_inscription_update_entry)
       {
-        THROW_WALLET_EXCEPTION_IF(ord_context.ordinal_id_received != ord_context.ordinal_id_spent, error::wallet_internal_error, "Inscription update: ordinal_id_received don't match with ordinal_id_spent");
-        stream_res << "Inscription updated, id: " << ord_context.ordinal_id_received;
+        THROW_WALLET_EXCEPTION_IF(ord_context.inscription_id_received != ord_context.inscription_id_spent, error::wallet_internal_error, "Inscription update: inscription_id_received don't match with inscription_id_spent");
+        stream_res << "Inscription updated, id: " << ord_context.inscription_id_received;
       }else
       {
-        if(ord_context.has_ordinal_register_entry)
+        if(ord_context.has_inscription_register_entry)
         {
-          stream_res << "Inscription registered, id: " << ord_context.ordinal_id_received;
+          stream_res << "Inscription registered, id: " << ord_context.inscription_id_received;
         }else
         {
-          stream_res << "Inscription received, id: " << ord_context.ordinal_id_received;
+          stream_res << "Inscription received, id: " << ord_context.inscription_id_received;
         }      
       }
-    }else if(ord_context.spent_ordinal)
+    }else if(ord_context.spent_inscription)
     {
-      stream_res << "Inscription withdrawn, id: " << ord_context.ordinal_id_spent;
+      stream_res << "Inscription withdrawn, id: " << ord_context.inscription_id_spent;
     }
     
     if (m_callback)
@@ -2599,9 +2599,9 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   }
 }
 //----------------------------------------------------------------------------------------------------
-std::map<uint64_t, wallet2::wallet_ordinal> wallet2::get_my_ordinals()
+std::map<uint64_t, wallet2::wallet_inscription> wallet2::get_my_inscriptions()
 {
-  return m_ordinals;
+  return m_inscriptions;
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::process_unconfirmed(const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t height)
@@ -3862,11 +3862,11 @@ void wallet2::detach_blockchain(uint64_t height, std::map<std::pair<uint64_t, ui
     THROW_WALLET_EXCEPTION_IF(it_pk == m_pub_keys.end(), error::wallet_internal_error, "public key not found");
     m_pub_keys.erase(it_pk);
 
-    //pop ordinals
-    auto it_ord = m_ordinals.find(i);
-    if (it_ord != m_ordinals.end())
+    //pop inscriptions
+    auto it_ord = m_inscriptions.find(i);
+    if (it_ord != m_inscriptions.end())
     {
-      m_ordinals.erase(it_ord);
+      m_inscriptions.erase(it_ord);
     }
   }
   transfers_detached = std::distance(it, m_transfers.end());
@@ -3924,7 +3924,7 @@ bool wallet2::clear()
   m_multisig_rounds_passed = 0;
   m_device_last_key_image_sync = 0;
 
-  m_ordinals.clear();
+  m_inscriptions.clear();
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -5657,11 +5657,11 @@ bool check_serialzation_to_extra()
   ex_n.nonce.resize(10, 'n');
   cryptonote::add_type_to_extra(tx.extra, ex_n);
 
-  tx_extra_ordinal_register ordinal;
-  ordinal.img_data.resize(1006, 'x');
-  ordinal.meta_data.resize(20, 'y');
+  tx_extra_inscription_register inscription;
+  inscription.img_data.resize(1006, 'x');
+  inscription.meta_data.resize(20, 'y');
 
-  cryptonote::add_type_to_extra(tx.extra, ordinal);
+  cryptonote::add_type_to_extra(tx.extra, inscription);
 
   std::vector<tx_extra_field> tx_extra_fields;
 
@@ -6115,7 +6115,7 @@ std::map<uint32_t, uint64_t> wallet2::balance_per_subaddress(uint32_t index_majo
   std::map<uint32_t, uint64_t> amount_per_subaddr;
   for (const auto& td: m_transfers)
   {
-    if (td.m_subaddr_index.major == index_major && !is_spent(td, strict)  && !td.m_is_ordinal && !td.m_frozen)
+    if (td.m_subaddr_index.major == index_major && !is_spent(td, strict)  && !td.m_is_inscription && !td.m_frozen)
     {
       auto found = amount_per_subaddr.find(td.m_subaddr_index.minor);
       if (found == amount_per_subaddr.end())
@@ -6170,7 +6170,7 @@ std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> wallet2::
   const uint64_t now = time(NULL);
   for(const transfer_details& td: m_transfers)
   {
-    if(td.m_subaddr_index.major == index_major && !is_spent(td, strict)  && !td.m_is_ordinal && !td.m_frozen)
+    if(td.m_subaddr_index.major == index_major && !is_spent(td, strict)  && !td.m_is_inscription && !td.m_frozen)
     {
       uint64_t amount = 0, blocks_to_unlock = 0, time_to_unlock = 0;
       if (is_transfer_unlocked(td))
@@ -8861,9 +8861,9 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
       // pick real out first (it will be sorted when done)
       outs.back().push_back(std::make_tuple(td.m_global_output_index, td.get_public_key(), mask));
 
-      if (td.m_is_ordinal)
+      if (td.m_is_inscription)
       {
-        // Request specific outputs for ordinal
+        // Request specific outputs for inscription
         COMMAND_RPC_GET_OUTPUTS_BIN::request ord_decoys_req = AUTO_VAL_INIT(ord_decoys_req);
         COMMAND_RPC_GET_OUTPUTS_BIN::response ord_decoys_resp = AUTO_VAL_INIT(ord_decoys_resp);
         ord_decoys_req.get_txid = false;
@@ -9523,7 +9523,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(uint64_t needed_money, ui
   for (size_t i = 0; i < m_transfers.size(); ++i)
   {
     const transfer_details& td = m_transfers[i];
-    if (!is_spent(td, false) && !td.m_is_ordinal && !td.m_frozen && td.is_rct() && td.amount() >= needed_money && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
+    if (!is_spent(td, false) && !td.m_is_inscription && !td.m_frozen && td.is_rct() && td.amount() >= needed_money && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
       {
@@ -9543,7 +9543,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(uint64_t needed_money, ui
   for (size_t i = 0; i < m_transfers.size(); ++i)
   {
     const transfer_details& td = m_transfers[i];
-    if (!is_spent(td, false) && !td.m_is_ordinal && !td.m_frozen && !td.m_key_image_partial && td.is_rct() && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
+    if (!is_spent(td, false) && !td.m_is_inscription && !td.m_frozen && !td.m_key_image_partial && td.is_rct() && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
       {
@@ -9559,7 +9559,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(uint64_t needed_money, ui
           MDEBUG("Ignoring output " << j << " of amount " << print_money(td2.amount()) << " which is outside prescribed range [" << print_money(m_ignore_outputs_below) << ", " << print_money(m_ignore_outputs_above) << "]");
           continue;
         }
-        if (!is_spent(td2, false) && !td2.m_is_ordinal && !td2.m_frozen && !td2.m_key_image_partial && td2.is_rct() && td.amount() + td2.amount() >= needed_money && is_transfer_unlocked(td2) && td2.m_subaddr_index == td.m_subaddr_index)
+        if (!is_spent(td2, false) && !td2.m_is_inscription && !td2.m_frozen && !td2.m_key_image_partial && td2.is_rct() && td.amount() + td2.amount() >= needed_money && is_transfer_unlocked(td2) && td2.m_subaddr_index == td.m_subaddr_index)
         {
           // update our picks if those outputs are less related than any we
           // already found. If the same, don't update, and oldest suitable outputs
@@ -10134,15 +10134,15 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   hw::reset_mode rst(hwdev);  
 
   auto original_dsts = dsts;
-  //bool is_ordinal_register = false;
+  //bool is_inscription_register = false;
   size_t extra_inputs_reserved_fee = 0;
   uint64_t additional_fee_for_inscription = 0;
-  if(dsts[0].is_ordinal)
+  if(dsts[0].is_inscription)
   {
-    //is_ordinal_register = true;
-    additional_fee_for_inscription = cryptonote::get_inscription_registration_cost(dsts[0].inscription_size);
+    //is_inscription_register = true;
+    additional_fee_for_inscription = cryptonote::get_inscription_record_cost(dsts[0].inscription_size);
 
-    if(dsts[0].ordinal_origin != crypto::null_hash)
+    if(dsts[0].inscription_origin != crypto::null_hash)
     {
       extra_inputs_reserved_fee = 1;
     }
@@ -10285,7 +10285,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       MDEBUG("Ignoring output " << i << " of amount " << print_money(td.amount()) << " which is below fractional threshold " << print_money(fractional_threshold));
       continue;
     }
-    if (!is_spent(td, false) && !td.m_is_ordinal && !td.m_frozen && !td.m_key_image_partial && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
+    if (!is_spent(td, false) && !td.m_is_inscription && !td.m_frozen && !td.m_key_image_partial && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
       {
@@ -10402,18 +10402,18 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   std::vector<size_t>* unused_transfers_indices = &unused_transfers_indices_per_subaddr[0].second;
   std::vector<size_t>* unused_dust_indices      = &unused_dust_indices_per_subaddr[0].second;
   
-  // handle ordinal if needed
-  if (dsts[0].is_ordinal && dsts[0].ordinal_origin != crypto::null_hash)
+  // handle inscription if needed
+  if (dsts[0].is_inscription && dsts[0].inscription_origin != crypto::null_hash)
   {
-    // locate ordinal first
-    auto it = std::find_if(m_ordinals.begin(), m_ordinals.end(),
-      [&](const auto& pair) { return pair.second.ordinal_hash == dsts[0].ordinal_origin; });
-    THROW_WALLET_EXCEPTION_IF(it == m_ordinals.end(), error::wallet_internal_error, "Inscription not found");
+    // locate inscription first
+    auto it = std::find_if(m_inscriptions.begin(), m_inscriptions.end(),
+      [&](const auto& pair) { return pair.second.inscription_hash == dsts[0].inscription_origin; });
+    THROW_WALLET_EXCEPTION_IF(it == m_inscriptions.end(), error::wallet_internal_error, "Inscription not found");
     THROW_WALLET_EXCEPTION_IF(it->second.state_mask&INSCRIPTION_STATE_SEND_PENDING, error::wallet_internal_error, "The inscription has already been sent and is currently pending with the other transaction");
     
     uint64_t transfer_index = it->first;
     txes.back().selected_transfers.push_back(transfer_index);
-    MDEBUG("Ordinal prepared for transfer");
+    MDEBUG("inscription prepared for transfer");
   }
 
   hwdev.set_mode(hw::device::TRANSACTION_CREATE_FAKE);
@@ -10851,7 +10851,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below
       MDEBUG("Ignoring output " << i << " of amount " << print_money(td.amount()) << " which is below threshold " << print_money(fractional_threshold));
       continue;
     }
-    if (!is_spent(td, false) && !td.m_is_ordinal && !td.m_frozen && !td.m_key_image_partial && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && (subaddr_indices.empty() || subaddr_indices.count(td.m_subaddr_index.minor) == 1))
+    if (!is_spent(td, false) && !td.m_is_inscription && !td.m_frozen && !td.m_key_image_partial && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && (subaddr_indices.empty() || subaddr_indices.count(td.m_subaddr_index.minor) == 1))
     {
       fund_found = true;
       if (below == 0 || td.amount() < below)
@@ -10899,7 +10899,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypt
   for (size_t i = 0; i < m_transfers.size(); ++i)
   {
     const transfer_details& td = m_transfers[i];
-    if (td.m_key_image_known && td.m_key_image == ki && !is_spent(td, false)  && !td.m_is_ordinal && !td.m_frozen && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td))
+    if (td.m_key_image_known && td.m_key_image == ki && !is_spent(td, false)  && !td.m_is_inscription && !td.m_frozen && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td))
     {
       if (td.is_rct() || is_valid_decomposed_amount(td.amount()))
         unused_transfers_indices.push_back(i);
@@ -11287,7 +11287,7 @@ std::vector<uint64_t> wallet2::get_unspent_amounts_vector(bool strict)
   std::set<uint64_t> set;
   for (const auto &td: m_transfers)
   {
-    if (!is_spent(td, strict)  && !td.m_is_ordinal && !td.m_frozen)
+    if (!is_spent(td, strict)  && !td.m_is_inscription && !td.m_frozen)
       set.insert(td.is_rct() ? 0 : td.amount());
   }
   std::vector<uint64_t> vector;
@@ -12302,7 +12302,7 @@ std::string wallet2::get_reserve_proof(const boost::optional<std::pair<uint32_t,
   for (size_t i = 0; i < m_transfers.size(); ++i)
   {
     const transfer_details &td = m_transfers[i];
-    if (!is_spent(td, true)  && !td.m_is_ordinal && !td.m_frozen && (!account_minreserve || account_minreserve->first == td.m_subaddr_index.major))
+    if (!is_spent(td, true)  && !td.m_is_inscription && !td.m_frozen && (!account_minreserve || account_minreserve->first == td.m_subaddr_index.major))
       selected_transfers.push_back(i);
   }
 

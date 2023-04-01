@@ -631,10 +631,10 @@ namespace cryptonote
     if (!pick<tx_extra_merge_mining_tag>(nar, tx_extra_fields, TX_EXTRA_MERGE_MINING_TAG)) return false;
     if (!pick<tx_extra_mysterious_minergate>(nar, tx_extra_fields, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG)) return false;
     if (!pick<tx_extra_padding>(nar, tx_extra_fields, TX_EXTRA_TAG_PADDING)) return false;
-    if (!pick<tx_extra_ordinal_register>(nar, tx_extra_fields, TX_EXTRA_TAG_ORDINALS_REGISTER)) return false;
-    if (!pick<tx_extra_ordinal_update>(nar, tx_extra_fields, TX_EXTRA_TAG_ORDINALS_UPDATE)) return false;
-    if (!pick<tx_extra_ordinal_register_multibody>(nar, tx_extra_fields, TX_EXTRA_TAG_ORDINALS_REGISTER_MULTIBODY)) return false;
-    if (!pick<tx_extra_ordinal_multibody_part>(nar, tx_extra_fields, TX_EXTRA_TAG_ORDINALS_MULTIBODY_PART)) return false;
+    if (!pick<tx_extra_inscription_register>(nar, tx_extra_fields, TX_EXTRA_TAG_INSCRIPTIONS_REGISTER)) return false;
+    if (!pick<tx_extra_inscription_update>(nar, tx_extra_fields, TX_EXTRA_TAG_INSCRIPTIONS_UPDATE)) return false;
+    if (!pick<tx_extra_inscription_register_multibody>(nar, tx_extra_fields, TX_EXTRA_TAG_INSCRIPTIONS_REGISTER_MULTIBODY)) return false;
+    if (!pick<tx_extra_inscription_multibody_part>(nar, tx_extra_fields, TX_EXTRA_TAG_INSCRIPTIONS_MULTIBODY_PART)) return false;
 
     // if not empty, someone added a new type and did not add a case above
     if (!tx_extra_fields.empty())

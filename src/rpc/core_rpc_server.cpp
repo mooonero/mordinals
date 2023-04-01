@@ -3615,86 +3615,108 @@ namespace cryptonote
     return true;
   }
 
-  bool ordinal_info_to_rpc(const inscription_info& ord_info, ordinal_rpc_info& ordin_rpc_info)
+  bool inscription_info_to_rpc(const inscription_info& ord_info, inscription_rpc_info& ordin_rpc_info)
   {
     ordin_rpc_info.current_meta_data = ord_info.current_metadata;
     ordin_rpc_info.img_data_hex = epee::string_tools::buff_to_hex_nodelimer(ord_info.img_data);
-    ordin_rpc_info.ordinal_hash = epee::string_tools::pod_to_hex(ord_info.img_data_hash);
-    ordin_rpc_info.ordinal_id = ord_info.index;
+    ordin_rpc_info.inscription_hash = epee::string_tools::pod_to_hex(ord_info.img_data_hash);
+    ordin_rpc_info.inscription_id = ord_info.index;
     ordin_rpc_info.history.resize(ord_info.history.size());
     for (size_t i = 0; i != ord_info.history.size(); i++)
     {
       ordin_rpc_info.history[i].meta_data = ord_info.history[i].meta_data;
       ordin_rpc_info.history[i].tx_id = epee::string_tools::pod_to_hex(ord_info.history[i].tx_id);
+      ordin_rpc_info.history[i].global_index = ord_info.history[i].global_index;
     }
     return true;
   }
 
-  bool core_rpc_server::on_get_ordinal_details(const COMMAND_GET_ORDINAL_DETAILS::request& req, COMMAND_GET_ORDINAL_DETAILS::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
+  bool core_rpc_server::on_get_inscription_details(const COMMAND_GET_INSCRIPTION_DETAILS::request& req, COMMAND_GET_INSCRIPTION_DETAILS::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
   {
-    ordinals_container& ordin = m_core.get_blockchain_storage().get_ordinals_container();
-    if (req.ordinal_hash.size() != 0)
+    inscriptions_container& ordin = m_core.get_blockchain_storage().get_inscriptions_container();
+    if (req.inscription_hash.size() != 0)
     {
-      // Requested ordinal by hash
+      // Requested inscription by hash
       crypto::hash ord_hash;
-      if (!epee::string_tools::hex_to_pod(req.ordinal_hash, ord_hash))
+      if (!epee::string_tools::hex_to_pod(req.inscription_hash, ord_hash))
       {
         error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
         error_resp.message = "Invalid hash format";
         return false;
       }
       inscription_info ord_info;
-      if (!ordin.get_ordinal_by_hash(ord_hash, ord_info))
+      if (!ordin.get_inscription_by_hash(ord_hash, ord_info))
       {
         res.status = CORE_RPC_STATUS_NOT_FOUND;
         return true;
       }
-      ordinal_info_to_rpc(ord_info, static_cast<ordinal_rpc_info&>(res));
+      inscription_info_to_rpc(ord_info, static_cast<inscription_rpc_info&>(res));
       res.status = CORE_RPC_STATUS_OK;
       return true;
     }
     else if(req.global_output_index != 0)
     {
-      // Requested ordinal by global output index
+      // Requested inscription by global output index
       inscription_info ord_info;
-      if (!ordin.get_ordinal_by_global_out_index(req.global_output_index, ord_info))
+      if (!ordin.get_inscription_by_global_out_index(req.global_output_index, ord_info))
       {
         res.status = CORE_RPC_STATUS_NOT_FOUND;
         return true;
       }
-      ordinal_info_to_rpc(ord_info, static_cast<ordinal_rpc_info&>(res));
+      inscription_info_to_rpc(ord_info, static_cast<inscription_rpc_info&>(res));
       res.status = CORE_RPC_STATUS_OK;
       return true;
     }
     else
     {
-      // Requested ordinal by index(id)
+      // Requested inscription by index(id)
       inscription_info ord_info;
-      if (!ordin.get_ordinal_by_index(req.ordinal_id, ord_info))
+      if (!ordin.get_inscription_by_index(req.inscription_id, ord_info))
       {
         res.status = CORE_RPC_STATUS_NOT_FOUND;
         return true;
       }
-      ordinal_info_to_rpc(ord_info, static_cast<ordinal_rpc_info&>(res));
+      inscription_info_to_rpc(ord_info, static_cast<inscription_rpc_info&>(res));
       res.status = CORE_RPC_STATUS_OK;
       return true;
     }
   }
-  bool core_rpc_server::on_get_ordinals_count(const COMMAND_GET_ORDINALS_COUNT::request& req, COMMAND_GET_ORDINALS_COUNT::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
+  bool core_rpc_server::on_get_inscriptions_count(const COMMAND_GET_INSCRIPTIONS_COUNT::request& req, COMMAND_GET_INSCRIPTIONS_COUNT::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
   {
-    res.count = m_core.get_blockchain_storage().get_ordinals_container().get_ordinals_count();
+    res.count = m_core.get_blockchain_storage().get_inscriptions_container().get_inscriptions_count();
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
-  bool core_rpc_server::on_get_ordinals(const COMMAND_GET_ORDINALS::request& req, COMMAND_GET_ORDINALS::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
+  bool core_rpc_server::on_get_inscriptions(const COMMAND_GET_INSCRIPTIONS::request& req, COMMAND_GET_INSCRIPTIONS::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
   {
     std::vector<inscription_info> ords;
-    m_core.get_blockchain_storage().get_ordinals_container().get_ordinals(req.start_from, req.count, ords);
-    res.ordinals.resize(ords.size());
+    m_core.get_blockchain_storage().get_inscriptions_container().get_inscriptions(req.start_from, req.count, ords);
+    res.inscriptions.resize(ords.size());
     for (size_t i = 0; i != ords.size(); i++)
     {
-      ordinal_info_to_rpc(ords[i], res.ordinals[i]);
+      inscription_info_to_rpc(ords[i], res.inscriptions[i]);
     }
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  
+  bool core_rpc_server::on_get_inscriptions_events_count(const COMMAND_GET_INSCRIPTIONS_EVENTS_COUNT::request& req, COMMAND_GET_INSCRIPTIONS_EVENTS_COUNT::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
+  {
+    res.count = m_core.get_blockchain_storage().get_inscriptions_container().get_events_count();
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+
+  bool core_rpc_server::on_get_inscriptions_events(const COMMAND_GET_INSCRIPTIONS_EVENTS::request& req, COMMAND_GET_INSCRIPTIONS_EVENTS::response& res, epee::json_rpc::error& error_resp, const connection_context* ctx)
+  {
+    std::vector<inscription_event> events;
+    m_core.get_blockchain_storage().get_inscriptions_container().get_events(req.start_from, req.count, events);
+    res.events.resize(events.size());
+    for (size_t i = 0; i != events.size(); i++)
+    {
+      res.events[i] = boost::get<update_event>(events[i]).inscription_id;
+    }
+
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }

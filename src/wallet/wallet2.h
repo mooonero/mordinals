@@ -346,7 +346,7 @@ private:
       std::vector<rct::key> m_multisig_k;
       std::vector<multisig_info> m_multisig_info; // one per other participant
       std::vector<std::pair<uint64_t, crypto::hash>> m_uses;
-      bool m_is_ordinal = false;
+      bool m_is_inscription = false;
 
       bool is_rct() const { return m_rct; }
       uint64_t amount() const { return m_amount; }
@@ -381,7 +381,7 @@ private:
         FIELD(m_multisig_info)
         FIELD(m_uses)
         VERSION_FIELD(1)
-        FIELD(m_is_ordinal)
+        FIELD(m_is_inscription)
       END_SERIALIZE()
     };
 
@@ -795,30 +795,30 @@ private:
     };
 
 #define INSCRIPTION_STATE_SEND_PENDING              0x0000000000000001ULL
-    struct wallet_ordinal
+    struct wallet_inscription
     {
-      crypto::hash ordinal_hash; //hash of img data
-      uint64_t ordinal_id = 0;
+      crypto::hash inscription_hash; //hash of img data
+      uint64_t inscription_id = 0;
       uint64_t state_mask = 0;
       
       BEGIN_SERIALIZE_OBJECT()
         VERSION_FIELD(0)
-        FIELD(ordinal_hash)
-        FIELD(ordinal_id)
+        FIELD(inscription_hash)
+        FIELD(inscription_id)
         FIELD(state_mask)
       END_SERIALIZE()
     };
     
-    struct process_transaction_ordinal_context
+    struct process_transaction_inscription_context
     {
-      cryptonote::tx_extra_ordinal_register ord_reg_data;
-      cryptonote::tx_extra_ordinal_update ord_upd_data;
-      bool has_ordinal_register_entry = false;
-      bool has_ordinal_update_entry = false;  
+      cryptonote::tx_extra_inscription_register ord_reg_data;
+      cryptonote::tx_extra_inscription_update ord_upd_data;
+      bool has_inscription_register_entry = false;
+      bool has_inscription_update_entry = false;  
       bool legit = false;
-      bool spent_ordinal = false;
-      uint64_t ordinal_id_received = 0;
-      uint64_t ordinal_id_spent = 0;
+      bool spent_inscription = false;
+      uint64_t inscription_id_received = 0;
+      uint64_t inscription_id_spent = 0;
     };
 
 
@@ -1322,7 +1322,7 @@ private:
       {
         return true;
       }
-      FIELD(m_ordinals)
+      FIELD(m_inscriptions)
     END_SERIALIZE()
 
     /*!
@@ -1573,8 +1573,8 @@ private:
 
     bool is_synced();
 
-    std::map<uint64_t, wallet_ordinal> get_my_ordinals(); 
-    bool transfer_ordinal(const crypto::hash& ordinal_hash);
+    std::map<uint64_t, wallet_inscription> get_my_inscriptions(); 
+    bool transfer_inscription(const crypto::hash& inscription_hash);
 
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(const std::vector<std::pair<double, double>> &fee_levels);
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees);
@@ -1782,7 +1782,7 @@ private:
     uint64_t get_dynamic_base_fee_estimate();
     float get_output_relatedness(const transfer_details &td0, const transfer_details &td1) const;
     std::vector<size_t> pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices);
-    void set_spent(size_t idx, uint64_t height, process_transaction_ordinal_context* ptr_ord_context = nullptr  );
+    void set_spent(size_t idx, uint64_t height, process_transaction_inscription_context* ptr_ord_context = nullptr  );
     void set_unspent(size_t idx);
     bool is_spent(const transfer_details &td, bool strict = true) const;
     bool is_spent(size_t idx, bool strict = true) const;
@@ -1866,7 +1866,7 @@ private:
     const std::vector<std::vector<tools::wallet2::multisig_info>> *m_multisig_rescan_info;
     const std::vector<std::vector<rct::key>> *m_multisig_rescan_k;
     serializable_unordered_map<crypto::public_key, crypto::key_image> m_cold_key_images;
-    serializable_map<uint64_t, wallet_ordinal> m_ordinals; //mapping: ordinal_id -> ordinal details
+    serializable_map<uint64_t, wallet_inscription> m_inscriptions; //mapping: inscription_id -> inscription details
 
     std::atomic<bool> m_run;
 
@@ -2502,9 +2502,9 @@ namespace boost
     }
 
     template <class Archive>
-    inline void serialize(Archive& a, tools::wallet2::wallet_ordinal& x, const boost::serialization::version_type ver)
+    inline void serialize(Archive& a, tools::wallet2::wallet_inscription& x, const boost::serialization::version_type ver)
     {
-      a& x.ordinal_hash;
+      a& x.inscription_hash;
     }
   }
 }

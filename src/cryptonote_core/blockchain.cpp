@@ -463,19 +463,19 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
       rx_set_main_seedhash(seedhash.data, tools::get_max_concurrency());
   }
 
-  if (!m_ordinals.init(config_folder))
+  if (!m_inscriptions.init(config_folder))
   {
-    MERROR("Ordinals initialization failed");
+    MERROR("inscriptions initialization failed");
     return false;
   }
-  if (m_ordinals.get_block_height() == 0 || m_ordinals.need_resync())
+  if (m_inscriptions.get_block_height() == 0 || m_inscriptions.need_resync())
   {
     // need to resync 
-    m_ordinals.clear();
+    m_inscriptions.clear();
     uint64_t h = m_db->height();
     if (h > MORDINAL_HEIGHT_START)
     {
-      MCINFO("global", "Ordinals: rescanning " << m_db->height() - MORDINAL_HEIGHT_START << " blocks...");
+      MCINFO("global", "inscriptions: rescanning " << m_db->height() - MORDINAL_HEIGHT_START << " blocks...");
       for (uint64_t h_ord = MORDINAL_HEIGHT_START; h_ord != m_db->height(); h_ord++)
       {
         block b_ord = m_db->get_block_from_height(h_ord);
@@ -484,25 +484,25 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
           transaction ord_tx;
           if (!m_db->get_tx(tx_id, ord_tx))
           {
-            MERROR("Ordinals: resync history failed for block  " << h_ord << " and tx " << tx_id);
+            MERROR("inscriptions: resync history failed for block  " << h_ord << " and tx " << tx_id);
             return false;
           }
           std::vector<uint64_t> outs_indexes;
           get_tx_outputs_gindexs(tx_id, outs_indexes);
 
-          m_ordinals.on_push_transaction(ord_tx, h_ord, outs_indexes);
+          m_inscriptions.on_push_transaction(ord_tx, h_ord, outs_indexes);
         }
-        m_ordinals.set_block_height(h_ord);
+        m_inscriptions.set_block_height(h_ord);
       }
-      MCINFO("global", "Ordinals: rescanning finished! Current height is " << m_db->height());
+      MCINFO("global", "inscriptions: rescanning finished! Current height is " << m_db->height());
     }
   }
-//#define TEST_ORDINALS_POPS
+//#define TEST_INSCRIPTIONS_POPS
 
-#ifdef TEST_ORDINALS_POPS
+#ifdef TEST_INSCRIPTIONS_POPS
   
-  MCINFO("global", "Ordinals: revers scanning " << m_db->height() - ORDINAL_HEIGHT_START << " blocks...");
-  for (uint64_t h_ord = m_db->height()-1; h_ord != ORDINAL_HEIGHT_START; h_ord--)
+  MCINFO("global", "inscriptions: revers scanning " << m_db->height() - MORDINAL_HEIGHT_START << " blocks...");
+  for (uint64_t h_ord = m_db->height()-1; h_ord != MORDINAL_HEIGHT_START; h_ord--)
   {
     block b_ord = m_db->get_block_from_height(h_ord);
     for (const auto& tx_id : boost::adaptors::reverse(b_ord.tx_hashes))
@@ -510,26 +510,26 @@ bool Blockchain::init(const std::string& config_folder,  BlockchainDB* db, const
       transaction ord_tx;
       if (!m_db->get_tx(tx_id, ord_tx))
       {
-        MERROR("Ordinals: resync history failed for block  " << h_ord << " and tx " << tx_id);
+        MERROR("inscriptions: resync history failed for block  " << h_ord << " and tx " << tx_id);
         return false;
       }
       std::vector<uint64_t> outs_indexes;
       get_tx_outputs_gindexs(tx_id, outs_indexes);
 
-      m_ordinals.on_pop_transaction(ord_tx, h_ord, outs_indexes);
+      m_inscriptions.on_pop_transaction(ord_tx, h_ord, outs_indexes);
     }
-    m_ordinals.set_block_height(h_ord);
+    m_inscriptions.set_block_height(h_ord);
   }
-  MCINFO("global", "Ordinals: rescanning finished! Current height is " << m_db->height());
+  MCINFO("global", "inscriptions: rescanning finished! Current height is " << m_db->height());
 
   return false;
 #endif 
-  if (m_db->height() != m_ordinals.get_block_height() + 1)
+  if (m_db->height() != m_inscriptions.get_block_height() + 1)
   {
-    MERROR("Ordinals initialization failed: height missmatch() " << m_db->height() << " & " << m_ordinals.get_block_height() + 1);
+    MERROR("inscriptions initialization failed: height missmatch() " << m_db->height() << " & " << m_inscriptions.get_block_height() + 1);
     return false;
   }
-  MCINFO("global", "Ordinals initialized with " << m_ordinals.get_ordinals_count() << " items");
+  MCINFO("global", "inscriptions initialized with " << m_inscriptions.get_inscriptions_count() << " items");
 
   return true;
 }
@@ -604,7 +604,7 @@ bool Blockchain::deinit()
   {
     LOG_ERROR("There was an issue closing/storing the blockchain, shutting down now to prevent issues!");
   }
-  m_ordinals.deinit();
+  m_inscriptions.deinit();
 
   delete m_hardfork;
   m_hardfork = NULL;
@@ -703,10 +703,10 @@ block Blockchain::pop_block_from_blockchain()
   size_t count = 0;
   for (transaction& tx : popped_txs)
   {
-    // updating ordinals
+    // updating inscriptions
     if (m_db->height() > MORDINAL_HEIGHT_START && !is_coinbase(tx))
     {
-      m_ordinals.on_pop_transaction(tx, get_block_height(popped_block), tx_outputs_offsets[count]);
+      m_inscriptions.on_pop_transaction(tx, get_block_height(popped_block), tx_outputs_offsets[count]);
     }
     count++;
     if (tx.pruned)
@@ -736,7 +736,7 @@ block Blockchain::pop_block_from_blockchain()
     }
   }
 
-  m_ordinals.set_block_height(m_db->height() - 1);
+  m_inscriptions.set_block_height(m_db->height() - 1);
 
   if (pruned)
     MWARNING(pruned << " pruned txes could not be added back to the txpool");
@@ -4166,9 +4166,9 @@ uint64_t Blockchain::get_adjusted_time(uint64_t height) const
   return (adjusted_current_block_ts < median_ts ? adjusted_current_block_ts : median_ts);
 }
 
-ordinals_container& Blockchain::get_ordinals_container()
+inscriptions_container& Blockchain::get_inscriptions_container()
 {
-  return m_ordinals;
+  return m_inscriptions;
 }
 //------------------------------------------------------------------
 //TODO: revisit, has changed a bit on upstream
@@ -4621,17 +4621,17 @@ leave:
   }
 
   TIME_MEASURE_FINISH(addblock);
-  //updating ordinals
+  //updating inscriptions
   if (m_db->height() > MORDINAL_HEIGHT_START)
   {
     for (auto it_txs = txs.begin(); it_txs != txs.end(); it_txs++)
     {
       std::vector<uint64_t> outs_indexes;
       get_tx_outputs_gindexs(get_transaction_hash(it_txs->first), outs_indexes);
-      m_ordinals.on_push_transaction(it_txs->first, m_db->height() - 1, outs_indexes);
+      m_inscriptions.on_push_transaction(it_txs->first, m_db->height() - 1, outs_indexes);
     }
   }
-  m_ordinals.set_block_height(m_db->height() - 1);
+  m_inscriptions.set_block_height(m_db->height() - 1);
 
 
   // do this after updating the hard fork state since the weight limit may change due to fork

@@ -356,9 +356,9 @@ namespace cryptonote
       tx.vin.push_back(input_to_key);
     }
 
-    bool has_ordinal = destinations.begin()->is_ordinal;
+    bool has_inscription = destinations.begin()->is_inscription;
 
-    if (shuffle_outs && !has_ordinal)
+    if (shuffle_outs && !has_inscription)
     {
       std::shuffle(destinations.begin(), destinations.end(), crypto::random_device{});
     }
@@ -424,15 +424,15 @@ namespace cryptonote
         out_eph_public_key = dead_key;
         LOG_PRINT_L0("Creating burn output...(out_eph_public_key=" << out_eph_public_key  << ")");
       }
-      if (dst_entr.is_ordinal)
+      if (dst_entr.is_inscription)
       {
         if (tx.vout.size() != 0)
         {
-          LOG_ERROR("Internal error: attempt to create ordinal, that is not at first in vouts");
+          LOG_ERROR("Internal error: attempt to create inscription, that is not at first in vouts");
           return false;
         }
         else {
-          LOG_PRINT_L0("Ordinal with amount " << cryptonote::print_money(dst_entr.amount) << " generated!");
+          LOG_PRINT_L0("inscription with amount " << cryptonote::print_money(dst_entr.amount) << " generated!");
         }
       }
       tx_out out;
@@ -702,11 +702,10 @@ namespace cryptonote
     return fee;
   }
 
-  uint64_t get_inscription_registration_cost(uint64_t size)
+  uint64_t get_inscription_record_cost(uint64_t size)
   {
     const uint64_t inscription_fee_quantization_mask = 1000000000; // 0.012, 0.013 etc
     const uint64_t inscription_base_fee = 4000000; // max priority multiplier
-    //const uint64_t floor_cost = 10000000000; // 0.01 XMR
 
     return calculate_fee_from_weight(inscription_base_fee, size, inscription_fee_quantization_mask);
   }

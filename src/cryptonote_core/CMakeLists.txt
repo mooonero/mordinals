@@ -32,7 +32,7 @@ set(cryptonote_core_sources
   tx_pool.cpp
   tx_sanity_check.cpp
   cryptonote_tx_utils.cpp
-  ordinals_container.cpp
+  inscriptions_container.cpp
   )
 
 set(cryptonote_core_headers)

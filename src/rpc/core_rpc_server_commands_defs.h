@@ -2742,28 +2742,30 @@ namespace cryptonote
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
-  struct ordinal_rpc_history_entry
+  struct inscription_rpc_history_entry
   {
     std::string tx_id;
     std::string meta_data;
+    std::string global_index;
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(tx_id)
       KV_SERIALIZE(meta_data)
+      KV_SERIALIZE(global_index)
     END_KV_SERIALIZE_MAP()
   };
 
-  struct ordinal_rpc_info
+  struct inscription_rpc_info
   {
-    uint64_t ordinal_id;
-    std::string ordinal_hash;
+    uint64_t inscription_id;
+    std::string inscription_hash;
     std::string current_meta_data;
     std::string img_data_hex;
-    std::vector<ordinal_rpc_history_entry> history;
+    std::vector<inscription_rpc_history_entry> history;
 
     BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE(ordinal_id)
-      KV_SERIALIZE(ordinal_hash)
+      KV_SERIALIZE(inscription_id)
+      KV_SERIALIZE(inscription_hash)
       KV_SERIALIZE(current_meta_data)
       KV_SERIALIZE(img_data_hex)
       KV_SERIALIZE(history)
@@ -2772,34 +2774,34 @@ namespace cryptonote
 
 
 
-  struct COMMAND_GET_ORDINAL_DETAILS
+  struct COMMAND_GET_INSCRIPTION_DETAILS
   {
     struct request_t : public rpc_request_base
     {
-      uint64_t ordinal_id = 0;
-      std::string ordinal_hash;
+      uint64_t inscription_id = 0;
+      std::string inscription_hash;
       uint64_t global_output_index = 0;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_request_base)
-        KV_SERIALIZE(ordinal_id)
-        KV_SERIALIZE(ordinal_hash)
+        KV_SERIALIZE(inscription_id)
+        KV_SERIALIZE(inscription_hash)
         KV_SERIALIZE(global_output_index)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
 
-    struct response_t : public rpc_response_base, public ordinal_rpc_info
+    struct response_t : public rpc_response_base, public inscription_rpc_info
     {
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
-        KV_SERIALIZE_PARENT(ordinal_rpc_info)
+        KV_SERIALIZE_PARENT(inscription_rpc_info)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
-  struct COMMAND_GET_ORDINALS_COUNT
+  struct COMMAND_GET_INSCRIPTIONS_COUNT
   {
     struct request_t : public rpc_request_base
     {
@@ -2822,7 +2824,7 @@ namespace cryptonote
   };
 
 
-  struct COMMAND_GET_ORDINALS
+  struct COMMAND_GET_INSCRIPTIONS
   {
     struct request_t : public rpc_request_base
     {
@@ -2839,11 +2841,41 @@ namespace cryptonote
 
     struct response_t : public rpc_response_base
     {
-      std::vector<ordinal_rpc_info> ordinals;
+      std::vector<inscription_rpc_info> inscriptions;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_response_base)
-        KV_SERIALIZE(ordinals)
+        KV_SERIALIZE(inscriptions)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  // Basically the same structure
+  typedef COMMAND_GET_INSCRIPTIONS_COUNT COMMAND_GET_INSCRIPTIONS_EVENTS_COUNT;
+
+  struct COMMAND_GET_INSCRIPTIONS_EVENTS
+  {
+    struct request_t : public rpc_request_base
+    {
+      uint64_t start_from;
+      uint64_t count;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_request_base)
+        KV_SERIALIZE(start_from)
+        KV_SERIALIZE(count)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t : public rpc_response_base
+    {
+      std::vector<uint64_t> events;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_PARENT(rpc_response_base)
+        KV_SERIALIZE(events)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

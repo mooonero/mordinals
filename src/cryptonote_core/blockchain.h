@@ -62,7 +62,7 @@
 #include "checkpoints/checkpoints.h"
 #include "cryptonote_basic/hardfork.h"
 #include "blockchain_db/blockchain_db.h"
-#include "ordinals_container.h"
+#include "inscriptions_container.h"
 
 namespace tools { class Notify; }
 
@@ -1125,7 +1125,7 @@ namespace cryptonote
      */
     uint64_t get_adjusted_time(uint64_t height) const;
 
-    ordinals_container& get_ordinals_container();
+    inscriptions_container& get_inscriptions_container();
 
 #ifndef IN_UNIT_TESTS
   private:
@@ -1153,8 +1153,8 @@ namespace cryptonote
     std::unordered_map<crypto::hash, std::unordered_map<crypto::key_image, std::vector<output_data_t>>> m_scan_table;
     std::unordered_map<crypto::hash, crypto::hash> m_blocks_longhash_table;
 
-    //ordinals container
-    ordinals_container m_ordinals;
+    //inscriptions container
+    inscriptions_container m_inscriptions;
 
     // Keccak hashes for each block and for fast pow checking
     std::vector<std::pair<crypto::hash, crypto::hash>> m_blocks_hash_of_hashes;

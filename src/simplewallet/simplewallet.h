@@ -89,11 +89,11 @@ namespace cryptonote
     {     
       transfer_main_adv_options(){}
       bool do_burn = false;
-      bool do_mint_ordinal = false;
-      tx_extra_ordinal_register ord_reg;
-      bool do_transfer_ordinal = false;
+      bool do_mint_inscription = false;
+      tx_extra_inscription_register ord_reg;
+      bool do_transfer_inscription = false;
       std::string new_meta_info;
-      crypto::hash ordinal_hash = crypto::null_hash;
+      crypto::hash inscription_hash = crypto::null_hash;
     };
 
     enum ResetType { ResetNone, ResetSoft, ResetHard, ResetSoftKeepKI };
@@ -184,9 +184,11 @@ namespace cryptonote
     bool transfer_main(int transfer_type, const std::vector<std::string> &args, bool called_by_mms, const transfer_main_adv_options& adv_options = transfer_main_adv_options());
     bool transfer(const std::vector<std::string> &args);
     bool burn(const std::vector<std::string>& args_);
-    bool mint_ordinal(const std::vector<std::string>& args_);
-    bool transfer_ordinal(const std::vector<std::string>& args_);
-    bool list_my_ordinals(const std::vector<std::string> &args_);
+    bool print_inscription_cost(const std::vector<std::string>& args_);
+    bool mint_inscription(const std::vector<std::string>& args_);
+    bool update_inscription(const std::vector<std::string>& args_);
+    bool transfer_inscription(const std::vector<std::string>& args_);
+    bool list_my_inscriptions(const std::vector<std::string> &args_);
     bool locked_transfer(const std::vector<std::string> &args);
     bool locked_sweep_all(const std::vector<std::string> &args);
     bool sweep_main(uint32_t account, uint64_t below, bool locked, const std::vector<std::string> &args);

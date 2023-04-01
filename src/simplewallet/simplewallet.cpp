@@ -198,9 +198,11 @@ namespace
   const char* USAGE_PAYMENT_ID("payment_id");
   const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <amount>) [<payment_id>]");
   const char* USAGE_BURN("burn <amount>");
-  const char* USAGE_TRANSFER_ORDINAL("transfer_ordinal <ordinal_hash> <address> [<path_to_new_meta_file>]");
-  const char* USAGE_MINT_ORDINAL("mint_ordinal <amount_for_out> <path_to_img_data_file> <path_to_meta_file> [destination_address]");
-  const char* USAGE_LIST_MY_ORDINALS("list_my_ordinals");
+  const char* USAGE_TRANSFER_INSCRIPTION("transfer_inscription <inscription_hash> <address> [<path_to_new_meta_file>]");
+  const char* USAGE_UPDATE_INSCRIPTION("update_inscription <inscription_hash> <path_to_new_meta_file>");
+  const char* USAGE_MINT_INSCRIPTION("mint_inscription <path_to_img_data_file> <path_to_meta_file> [destination_address]");
+  const char* USAGE_PRINT_INSCRIPTION_COST("print_inscription_cost");  
+  const char* USAGE_LIST_MY_INSCRIPTIONS("list_my_inscriptions");
   const char* USAGE_LOCKED_TRANSFER("locked_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <addr> <amount>) <lockblocks> [<payment_id (obsolete)>]");
   const char* USAGE_LOCKED_SWEEP_ALL("locked_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] <address> <lockblocks> [<payment_id (obsolete)>]");
   const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
@@ -3297,15 +3299,21 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("burn", boost::bind(&simple_wallet::on_command, this, &simple_wallet::burn, _1),
                            tr(USAGE_BURN),
                            tr("Burn <amount>"));
-  m_cmd_binder.set_handler("mint_ordinal", boost::bind(&simple_wallet::on_command, this, &simple_wallet::mint_ordinal, _1),
-                           tr(USAGE_MINT_ORDINAL),
-                           tr("mint_ordinal <amount_for_out> <path_to_img_data_file> <path_to_meta_file> [destination_address]"));
-  m_cmd_binder.set_handler("list_my_ordinals", boost::bind(&simple_wallet::on_command, this, &simple_wallet::list_my_ordinals, _1),
-                           tr(USAGE_LIST_MY_ORDINALS),
-                           tr("List ordinals that controlled by wallet"));
-  m_cmd_binder.set_handler("transfer_ordinal", boost::bind(&simple_wallet::on_command, this, &simple_wallet::transfer_ordinal, _1),
-                           tr(USAGE_TRANSFER_ORDINAL),
-                           tr("Transfer ordinal ownership"));
+  m_cmd_binder.set_handler("mint_inscription", boost::bind(&simple_wallet::on_command, this, &simple_wallet::mint_inscription, _1),
+                           tr(USAGE_MINT_INSCRIPTION),
+                           tr("mint_inscription <path_to_img_data_file> <path_to_meta_file> [destination_address]"));
+  m_cmd_binder.set_handler("print_insciption_cost", boost::bind(&simple_wallet::on_command, this, &simple_wallet::print_inscription_cost, _1),
+                           tr(USAGE_PRINT_INSCRIPTION_COST),
+                           tr("print inscription cost table"));
+  m_cmd_binder.set_handler("list_my_inscriptions", boost::bind(&simple_wallet::on_command, this, &simple_wallet::list_my_inscriptions, _1),
+                           tr(USAGE_LIST_MY_INSCRIPTIONS),
+                           tr("List inscriptions that controlled by wallet"));
+  m_cmd_binder.set_handler("update_inscription", boost::bind(&simple_wallet::on_command, this, &simple_wallet::update_inscription, _1),
+                           tr(USAGE_UPDATE_INSCRIPTION),
+                           tr("Update inscription meta info"));
+  m_cmd_binder.set_handler("transfer_inscription", boost::bind(&simple_wallet::on_command, this, &simple_wallet::transfer_inscription, _1),
+                           tr(USAGE_TRANSFER_INSCRIPTION),
+                           tr("Transfer inscription ownership"));
   m_cmd_binder.set_handler("locked_transfer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::locked_transfer,_1),
                            tr(USAGE_LOCKED_TRANSFER),
@@ -6145,10 +6153,10 @@ bool simple_wallet::show_incoming_transfers(const std::vector<std::string>& args
         const std::pair<std::string, std::string> line = show_outputs_line(heights, blockchain_height, idx);
         extra_string += std::string("\n    ") + tr("Used at heights: ") + line.first + "\n    " + line.second;
       }
-      message_writer(td.m_is_ordinal ? console_color_cyan : (td.m_spent ? console_color_magenta : console_color_green), false) <<
+      message_writer(td.m_is_inscription ? console_color_cyan : (td.m_spent ? console_color_magenta : console_color_green), false) <<
         boost::format("%21s%8s%12s%8s%16u%68s%16u%s") %
         print_money(td.amount()) %
-        (td.m_is_ordinal ? "O" : (td.m_spent ? tr("T") : tr("F"))) %
+        (td.m_is_inscription ? "O" : (td.m_spent ? tr("T") : tr("F"))) %
         (m_wallet->frozen(td) ? tr("[frozen]") : m_wallet->is_transfer_unlocked(td) ? tr("unlocked") : tr("locked")) %
         (td.is_rct() ? tr("RingCT") : tr("-")) %
         td.m_global_output_index %
@@ -6566,8 +6574,8 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     return false;
 
   bool do_burn = adv_options.do_burn;
-  bool do_mint_ordinal = adv_options.do_mint_ordinal;
-  const tx_extra_ordinal_register& ordinal = adv_options.ord_reg;
+  bool do_mint_inscription = adv_options.do_mint_inscription;
+  const tx_extra_inscription_register& inscription = adv_options.ord_reg;
 
   std::vector<std::string> local_args = args_;
 
@@ -6623,14 +6631,14 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
   }
 
   std::vector<uint8_t> extra;
-  if (do_mint_ordinal)
+  if (do_mint_inscription)
   {
-    cryptonote::add_type_to_extra(extra, ordinal);
-  }else if(adv_options.do_transfer_ordinal)
+    cryptonote::add_type_to_extra(extra, inscription);
+  }else if(adv_options.do_transfer_inscription)
   {
-    tx_extra_ordinal_update ordinal_update;
-    ordinal_update.meta_data = adv_options.new_meta_info;
-    cryptonote::add_type_to_extra(extra, ordinal_update);
+    tx_extra_inscription_update inscription_update;
+    inscription_update.meta_data = adv_options.new_meta_info;
+    cryptonote::add_type_to_extra(extra, inscription_update);
   }
 
 
@@ -6768,15 +6776,15 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
       success_msg_writer(true) << tr("Doing burn of coins: ") << print_money(de.amount);
       de.addr.m_spend_public_key = de.addr.m_view_public_key = cryptonote::zero_public_key;
     }
-    if (do_mint_ordinal && dsts.size() == 0)
+    if (do_mint_inscription && dsts.size() == 0)
     {
-      de.is_ordinal = true;
+      de.is_inscription = true;
       de.inscription_size = adv_options.ord_reg.img_data.size() + adv_options.ord_reg.meta_data.size();
     }
-    else if (adv_options.do_transfer_ordinal  && dsts.size() == 0)
+    else if (adv_options.do_transfer_inscription  && dsts.size() == 0)
     {
-      de.is_ordinal = true;
-      de.ordinal_origin = adv_options.ordinal_hash;
+      de.is_inscription = true;
+      de.inscription_origin = adv_options.inscription_hash;
       de.inscription_size = adv_options.new_meta_info.size();
     }
     dsts.push_back(de);
@@ -7072,114 +7080,148 @@ bool simple_wallet::burn(const std::vector<std::string>& args_)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::transfer_ordinal(const std::vector<std::string>& args_)
+bool simple_wallet::update_inscription(const std::vector<std::string>& args_)
+{
+    if (args_.size() != 2 )
+  {
+    PRINT_USAGE(USAGE_UPDATE_INSCRIPTION);
+    return true;
+  }
+  std::vector<std::string> args_local;
+  args_local.push_back(args_[0]);
+  args_local.push_back(m_wallet->get_address_as_str());
+  args_local.push_back(args_[1]);
+
+  return transfer_inscription(args_local);
+}
+bool simple_wallet::transfer_inscription(const std::vector<std::string>& args_)
 {
   if (args_.size() < 2 || args_.size() > 3)
   {
-    PRINT_USAGE(USAGE_TRANSFER_ORDINAL);
+    PRINT_USAGE(USAGE_TRANSFER_INSCRIPTION);
     return true;
   }
   transfer_main_adv_options adv_opt;
-  adv_opt.do_transfer_ordinal = true;
-  if(!epee::string_tools::hex_to_pod(args_[0], adv_opt.ordinal_hash))
+  adv_opt.do_transfer_inscription = true;
+  if(!epee::string_tools::hex_to_pod(args_[0], adv_opt.inscription_hash))
   {
-    fail_msg_writer() << "Error on parsing ordinal hash: " << args_[0];
+    fail_msg_writer() << "Error on parsing inscription hash: " << args_[0];
     return true;
   }
-  if (args_.size() >= 2)
+  if (args_.size() >= 3)
   {
     // Load new meta info
     bool r = epee::file_io_utils::load_file_to_string(args_[2], adv_opt.new_meta_info);
     if (!r)
     {
-      fail_msg_writer() << "Error on reading meta data file for ordinal: " << args_[2];
+      fail_msg_writer() << "Error on reading meta data file for inscription: " << args_[2];
       return true;
     }
   }
 
-  std::map<uint64_t, tools::wallet2::wallet_ordinal> ords = m_wallet->get_my_ordinals();
+  std::map<uint64_t, tools::wallet2::wallet_inscription> ords = m_wallet->get_my_inscriptions();
 
   // TODO: need to optimize this, consider utilizing a multiindex
   auto it = std::find_if(ords.begin(), ords.end(),
-    [&](const auto& pair) { return pair.second.ordinal_hash == adv_opt.ordinal_hash; });
+    [&](const auto& pair) { return pair.second.inscription_hash == adv_opt.inscription_hash; });
 
   if (it == ords.end())
   {
-    LOG_PRINT_L0("Error on finding ordinal with id " << adv_opt.ordinal_hash);
+    LOG_PRINT_L0("Error on finding inscription with id " << adv_opt.inscription_hash);
     return false;
   }
   std::vector<std::string> args_local;
   args_local.push_back(args_[1]);
-  args_local.push_back("0.0001");
+  args_local.push_back("0.00001");
 
   return transfer_main(Transfer, args_local, false, adv_opt);
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::mint_ordinal(const std::vector<std::string>& args_)
+
+bool simple_wallet::print_inscription_cost(const std::vector<std::string>& args_)
 {
-  if (args_.size() < 3 || args_.size() > 4)
+  uint64_t sz = 10;
+  message_writer(console_color_yellow, true) << "Cost for " << sz << " bytes: " << cryptonote::print_money(cryptonote::get_inscription_record_cost(sz));
+  sz = 100;
+  message_writer(console_color_yellow, true) << "Cost for " << sz << " bytes: " << cryptonote::print_money(cryptonote::get_inscription_record_cost(sz));
+  sz = 100;
+  message_writer(console_color_yellow, true) << "Cost for " << sz << " bytes: " << cryptonote::print_money(cryptonote::get_inscription_record_cost(sz));
+  sz = 1000;
+  message_writer(console_color_yellow, true) << "Cost for " << sz << " bytes: " << cryptonote::print_money(cryptonote::get_inscription_record_cost(sz));
+  sz = 5000;
+  message_writer(console_color_yellow, true) << "Cost for " << sz << " bytes: " << cryptonote::print_money(cryptonote::get_inscription_record_cost(sz));
+  sz = 10000;
+  message_writer(console_color_yellow, true) << "Cost for " << sz << " bytes: " << cryptonote::print_money(cryptonote::get_inscription_record_cost(sz));
+  sz = 20000;
+  message_writer(console_color_yellow, true) << "Cost for " << sz << " bytes: " << cryptonote::print_money(cryptonote::get_inscription_record_cost(sz));
+  sz = 50000;
+  message_writer(console_color_yellow, true) << "Cost for " << sz << " bytes: " << cryptonote::print_money(cryptonote::get_inscription_record_cost(sz));
+  return true;
+}
+
+bool simple_wallet::mint_inscription(const std::vector<std::string>& args_)
+{
+  if (args_.size() < 2 || args_.size() > 3)
   {
-    PRINT_USAGE(USAGE_MINT_ORDINAL);
+    PRINT_USAGE(USAGE_MINT_INSCRIPTION);
     return true;
   }
 
   transfer_main_adv_options adv_opt;
-  adv_opt.do_mint_ordinal = true;
+  adv_opt.do_mint_inscription = true;
 
-  bool r = epee::file_io_utils::load_file_to_string(args_[1], adv_opt.ord_reg.img_data);
+  bool r = epee::file_io_utils::load_file_to_string(args_[0], adv_opt.ord_reg.img_data);
   if (!r)
   {
-    fail_msg_writer() << "Error on reading data file for ordinal: " << args_[1];
+    fail_msg_writer() << "Error on reading data file for inscription: " << args_[0];
     return true;
   }
-  r = epee::file_io_utils::load_file_to_string(args_[2], adv_opt.ord_reg.meta_data);
+  r = epee::file_io_utils::load_file_to_string(args_[1], adv_opt.ord_reg.meta_data);
   if (!r)
   {
-    fail_msg_writer() << "Error on reading meta data file for ordinal: " << args_[2];
+    fail_msg_writer() << "Error on reading meta data file for inscription: " << args_[1];
     return true;
   }
 
   {
-    COMMAND_GET_ORDINAL_DETAILS::request req;
-    COMMAND_GET_ORDINAL_DETAILS::response res;
-    req.ordinal_hash = epee::string_tools::pod_to_hex(crypto::cn_fast_hash(adv_opt.ord_reg.img_data.data(), adv_opt.ord_reg.img_data.size()));
-    m_wallet->invoke_http_json_rpc("/json_rpc", "get_ordinal_details", req, res);
+    COMMAND_GET_INSCRIPTION_DETAILS::request req;
+    COMMAND_GET_INSCRIPTION_DETAILS::response res;
+    req.inscription_hash = epee::string_tools::pod_to_hex(crypto::cn_fast_hash(adv_opt.ord_reg.img_data.data(), adv_opt.ord_reg.img_data.size()));
+    m_wallet->invoke_http_json_rpc("/json_rpc", "get_inscription_details", req, res);
     if(res.status != CORE_RPC_STATUS_NOT_FOUND)
     {
-      fail_msg_writer() << "Error: inscription with hash " << crypto::cn_fast_hash(adv_opt.ord_reg.img_data.data(), adv_opt.ord_reg.img_data.size()) << " already registered, file " << args_[1];
+      fail_msg_writer() << "Error: inscription with hash " << crypto::cn_fast_hash(adv_opt.ord_reg.img_data.data(), adv_opt.ord_reg.img_data.size()) << " already registered, file " << args_[0];
       return true;
     }
   }
-
-
   std::vector<std::string> main_args;
   if (args_.size() == 4)
   {
-    main_args.push_back(args_[3]);
+    main_args.push_back(args_[2]);
   }
   else
   {
     main_args.push_back(m_wallet->get_address_as_str());
   }
-  main_args.push_back(args_[0]);
+  main_args.push_back("0.00001");
   return transfer_main(Transfer, main_args, false, adv_opt);
-
 }
-bool simple_wallet::list_my_ordinals(const std::vector<std::string> &args_)
+
+bool simple_wallet::list_my_inscriptions(const std::vector<std::string> &args_)
 {
-  std::map<uint64_t, tools::wallet2::wallet_ordinal> ords = m_wallet->get_my_ordinals();
+  std::map<uint64_t, tools::wallet2::wallet_inscription> ords = m_wallet->get_my_inscriptions();
   const tools::wallet2::transfer_container& wallet_transfers = m_wallet->get_transfers();
   for(auto it = ords.begin(); it != ords.end(); it++)
   {
-    COMMAND_GET_ORDINAL_DETAILS::request req;
-    COMMAND_GET_ORDINAL_DETAILS::response res;
-    req.ordinal_hash = epee::string_tools::pod_to_hex(it->second.ordinal_hash);
-    bool r = m_wallet->invoke_http_json_rpc("/json_rpc", "get_ordinal_details", req, res);
+    COMMAND_GET_INSCRIPTION_DETAILS::request req;
+    COMMAND_GET_INSCRIPTION_DETAILS::response res;
+    req.inscription_hash = epee::string_tools::pod_to_hex(it->second.inscription_hash);
+    bool r = m_wallet->invoke_http_json_rpc("/json_rpc", "get_inscription_details", req, res);
     if(!r || res.status != CORE_RPC_STATUS_OK)
     {
       message_writer( console_color_cyan, false) <<
           boost::format("            %s") %
-          (epee::string_tools::pod_to_hex(it->second.ordinal_hash) + "   [Failed to fetch ordinal details]");      
+          (epee::string_tools::pod_to_hex(it->second.inscription_hash) + "   [Failed to fetch inscription details]");      
     }
     else
     {
@@ -7205,15 +7247,15 @@ bool simple_wallet::list_my_ordinals(const std::vector<std::string> &args_)
 
       message_writer( color, false) <<
           boost::format("%10u  %s   %s  %s") %
-          res.ordinal_id %
-          epee::string_tools::pod_to_hex(it->second.ordinal_hash) % 
+          res.inscription_id %
+          epee::string_tools::pod_to_hex(it->second.inscription_hash) % 
           res.history.back().tx_id %
           status
           ;
     }
 
   }
-  message_writer( console_color_cyan, false) << "Total: " << ords.size() << " ordinals";
+  message_writer( console_color_cyan, false) << "Total: " << ords.size() << " inscriptions";
   return true;
 }
 //----------------------------------------------------------------------------------------------------
