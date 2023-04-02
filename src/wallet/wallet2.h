@@ -1281,8 +1281,8 @@ private:
 
     BEGIN_SERIALIZE_OBJECT()
       MAGIC_FIELD("monero wallet cache")
-      VERSION_FIELD(4)
-      if (version < 4)
+      VERSION_FIELD(5)
+      if (version < 5)
       {
         m_reset_cache = true;
         return true;
