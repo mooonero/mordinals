@@ -61,7 +61,7 @@
 
 
 #define MORDINAL_HEIGHT_START                               2838270
-#define MORDINAL_SIZE_TO_FEE_THRESHOLD_HEIGHT_START         9999999999
+#define MORDINAL_SIZE_TO_FEE_THRESHOLD_HEIGHT_START         2855400
 
 struct inscription_history_entry
 {
