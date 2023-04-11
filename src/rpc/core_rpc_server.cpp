@@ -584,7 +584,7 @@ namespace cryptonote
   bool core_rpc_server::on_get_blocks(const COMMAND_RPC_GET_BLOCKS_FAST::request& req, COMMAND_RPC_GET_BLOCKS_FAST::response& res, const connection_context *ctx)
   {
     RPC_TRACKER(get_blocks);
-
+    res.mordinals_signature = MORDINAL_NODE_SIGNATURE;
     bool use_bootstrap_daemon;
     {
       boost::shared_lock<boost::shared_mutex> lock(m_bootstrap_daemon_mutex);

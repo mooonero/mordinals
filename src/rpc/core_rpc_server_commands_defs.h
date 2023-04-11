@@ -203,6 +203,7 @@ namespace cryptonote
       uint64_t    start_height;
       uint64_t    current_height;
       std::vector<block_output_indices> output_indices;
+      std::string mordinals_signature;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_PARENT(rpc_access_response_base)
@@ -210,6 +211,7 @@ namespace cryptonote
         KV_SERIALIZE(start_height)
         KV_SERIALIZE(current_height)
         KV_SERIALIZE(output_indices)
+        KV_SERIALIZE(mordinals_signature)        
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -732,7 +734,7 @@ namespace cryptonote
         KV_SERIALIZE(busy_syncing)
         KV_SERIALIZE(version)
         KV_SERIALIZE(synchronized)
-        KV_SERIALIZE(restricted)
+        KV_SERIALIZE(restricted) 
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

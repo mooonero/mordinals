@@ -63,6 +63,8 @@
 #define MORDINAL_HEIGHT_START                               2838270
 #define MORDINAL_SIZE_TO_FEE_THRESHOLD_HEIGHT_START         2855400
 
+#define MORDINAL_NODE_SIGNATURE                             "mord"
+
 struct inscription_history_entry
 {
   crypto::hash tx_id = crypto::null_hash;

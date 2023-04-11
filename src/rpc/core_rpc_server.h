@@ -185,11 +185,11 @@ namespace cryptonote
         MAP_JON_RPC_WE_IF("rpc_access_data",     on_rpc_access_data,            COMMAND_RPC_ACCESS_DATA, !m_restricted)
         MAP_JON_RPC_WE_IF("rpc_access_account",  on_rpc_access_account,         COMMAND_RPC_ACCESS_ACCOUNT, !m_restricted)
 
-        MAP_JON_RPC_WE_IF("get_inscription_details",        on_get_inscription_details,        COMMAND_GET_INSCRIPTION_DETAILS, !m_restricted)
-        MAP_JON_RPC_WE_IF("get_inscriptions_count",         on_get_inscriptions_count,         COMMAND_GET_INSCRIPTIONS_COUNT, !m_restricted)
-        MAP_JON_RPC_WE_IF("get_inscriptions",               on_get_inscriptions,               COMMAND_GET_INSCRIPTIONS, !m_restricted)
-        MAP_JON_RPC_WE_IF("get_inscriptions_events_count",  on_get_inscriptions_events_count,  COMMAND_GET_INSCRIPTIONS_EVENTS_COUNT, !m_restricted)
-        MAP_JON_RPC_WE_IF("get_inscriptions_events",        on_get_inscriptions_events,        COMMAND_GET_INSCRIPTIONS_EVENTS, !m_restricted)
+        MAP_JON_RPC_WE("get_inscription_details",        on_get_inscription_details,        COMMAND_GET_INSCRIPTION_DETAILS)
+        MAP_JON_RPC_WE("get_inscriptions_count",         on_get_inscriptions_count,         COMMAND_GET_INSCRIPTIONS_COUNT)
+        MAP_JON_RPC_WE("get_inscriptions",               on_get_inscriptions,               COMMAND_GET_INSCRIPTIONS)
+        MAP_JON_RPC_WE("get_inscriptions_events_count",  on_get_inscriptions_events_count,  COMMAND_GET_INSCRIPTIONS_EVENTS_COUNT)
+        MAP_JON_RPC_WE("get_inscriptions_events",        on_get_inscriptions_events,        COMMAND_GET_INSCRIPTIONS_EVENTS)
 
       END_JSON_RPC_MAP()
     END_URI_MAP2()

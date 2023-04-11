@@ -93,6 +93,7 @@ using namespace epee;
 #include "device/device_cold.hpp"
 #include "device_trezor/device_trezor.hpp"
 #include "net/socks_connect.h"
+#include "cryptonote_core/inscriptions_container.h"
 
 extern "C"
 {
@@ -2246,6 +2247,14 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
                 
                 ord_context.inscription_id_received = res.inscription_id;
                 ord_context.legit = true;
+              }else
+              {
+                std::stringstream rsp_msg;
+                rsp_msg << "SKIP_INSCRIPTION, context(u: " << ord_context.has_inscription_update_entry << ", r: " << ord_context.has_inscription_register_entry << "), rsp.status = " << res.status << ", res.inscription_hash = " << res.inscription_hash << ", derived_hash = " << inscription_hash;
+                if (m_callback)
+                {
+                  m_callback->on_general_message( rsp_msg.str(), console_color_red);
+                }
               }
             }
             else
@@ -2770,6 +2779,10 @@ void wallet2::pull_blocks(uint64_t start_height, uint64_t &blocks_start_height, 
     THROW_WALLET_EXCEPTION_IF(res.blocks.size() != res.output_indices.size(), error::wallet_internal_error,
         "mismatched blocks (" + boost::lexical_cast<std::string>(res.blocks.size()) + ") and output_indices (" +
         boost::lexical_cast<std::string>(res.output_indices.size()) + ") sizes from daemon");
+
+    THROW_WALLET_EXCEPTION_IF(res.mordinals_signature != MORDINAL_NODE_SIGNATURE, error::wallet_internal_error,
+        "Wrong daemon version(non-mordinal)");
+    
     check_rpc_cost("/getblocks.bin", res.credits, pre_call_credits, 1 + res.blocks.size() * COST_PER_BLOCK);
   }
 
