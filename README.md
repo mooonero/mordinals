@@ -180,7 +180,7 @@ You need to make the `simplewallet` and `daemon` targets to use mordinals.
 * Change to the root of the source code directory, change to the most recent release branch, and build:
 
     ```bash
-    cd monero
+    cd mordinals
     make cmake-release
     cd build/Linux/master/release
     make simplewallet daemon
