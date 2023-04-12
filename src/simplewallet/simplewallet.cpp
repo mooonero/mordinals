@@ -7195,7 +7195,7 @@ bool simple_wallet::mint_inscription(const std::vector<std::string>& args_)
     }
   }
   std::vector<std::string> main_args;
-  if (args_.size() == 4)
+  if (args_.size() == 3)
   {
     main_args.push_back(args_[2]);
   }
